@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { stringify as stringifyYaml } from "yaml";
 import { buildCatalogIndex, filterRecipes, loadCatalog } from "../src/catalog.ts";
 import { CatalogNotFoundError, RecipeValidationError } from "../src/errors.ts";
 
-const SCRATCH =
-  "/private/tmp/claude-501/-Users-kenshin-src-github-com-kenshin-morioka/ca2cc3c3-1e00-4fce-b9de-f54c99061074/scratchpad";
+/** CI ランナーでも動くよう OS の一時ディレクトリを使う。 */
+const SCRATCH = tmpdir();
 
 const created: string[] = [];
 
@@ -18,7 +19,7 @@ afterEach(async () => {
 
 async function tempDir(): Promise<string> {
   await mkdir(SCRATCH, { recursive: true });
-  const dir = await mkdtemp(join(SCRATCH, "catalog-"));
+  const dir = await realpath(await mkdtemp(join(SCRATCH, "catalog-")));
   created.push(dir);
   return dir;
 }

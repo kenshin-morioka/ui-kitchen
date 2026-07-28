@@ -1,12 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONFIG_FILENAME, findConfig, loadConfig, writeConfig } from "../src/config.ts";
 import { ConfigError, ConfigNotFoundError } from "../src/errors.ts";
 import type { ProjectConfig } from "../src/schema.ts";
 
-const SCRATCH =
-  "/private/tmp/claude-501/-Users-kenshin-src-github-com-kenshin-morioka/ca2cc3c3-1e00-4fce-b9de-f54c99061074/scratchpad";
+/** CI ランナーでも動くよう OS の一時ディレクトリを使う。 */
+const SCRATCH = tmpdir();
 
 const created: string[] = [];
 
@@ -20,7 +21,7 @@ afterEach(async () => {
 
 async function tempDir(): Promise<string> {
   await mkdir(SCRATCH, { recursive: true });
-  const dir = await mkdtemp(join(SCRATCH, "config-"));
+  const dir = await realpath(await mkdtemp(join(SCRATCH, "config-")));
   created.push(dir);
   return dir;
 }

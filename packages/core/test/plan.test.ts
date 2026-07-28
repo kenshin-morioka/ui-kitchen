@@ -1,14 +1,15 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Catalog, LoadedRecipe } from "../src/catalog.ts";
 import { ApplyBlockedError, FileSystemError, UiKitchenError } from "../src/errors.ts";
 import { applyPlan, buildPlan } from "../src/plan.ts";
 import type { ProjectConfig } from "../src/schema.ts";
 
-const SCRATCH =
-  "/private/tmp/claude-501/-Users-kenshin-src-github-com-kenshin-morioka/ca2cc3c3-1e00-4fce-b9de-f54c99061074/scratchpad";
+/** CI ランナーでも動くよう OS の一時ディレクトリを使う。 */
+const SCRATCH = tmpdir();
 
 const config: ProjectConfig = {
   platform: "web",
@@ -34,7 +35,7 @@ let workspace: string;
 let projectRoot: string;
 
 beforeEach(async () => {
-  workspace = await mkdtemp(join(SCRATCH, "plan-"));
+  workspace = await realpath(await mkdtemp(join(SCRATCH, "plan-")));
   projectRoot = join(workspace, "project");
   await mkdir(projectRoot, { recursive: true });
 });
