@@ -1,0 +1,16 @@
+{
+  "name": "@ui-kitchen/registry",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun src/build.ts",
+    "validate": "bun src/validate.ts"
+  },
+  "dependencies": {
+    "@ui-kitchen/core": "workspace:*"
+  }
+}

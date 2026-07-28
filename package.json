@@ -10,7 +10,9 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci --error-on-warnings packages",
-    "fix": "biome check --write ."
+    "fix": "biome check --write .",
+    "catalog:build": "bun packages/registry/src/build.ts",
+    "catalog:validate": "bun packages/registry/src/validate.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.6",
