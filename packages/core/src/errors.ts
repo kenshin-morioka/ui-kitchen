@@ -17,9 +17,40 @@ export class RecipeValidationError extends UiKitchenError {
 }
 
 export class UnknownRecipeError extends UiKitchenError {
-  constructor(id: string, available: string[]) {
+  /** requiredBy を渡すと、どの recipe の requires を直すべきか分かる。 */
+  constructor(id: string, available: string[], requiredBy?: string) {
     const hint = available.length > 0 ? `\n候補: ${available.slice(0, 10).join(", ")}` : "";
-    super("RECIPE_NOT_FOUND", `recipe が見つからない: ${id}${hint}`);
+    const origin = requiredBy ? ` (${requiredBy} の requires が参照している)` : "";
+    super("RECIPE_NOT_FOUND", `recipe が見つからない: ${id}${origin}${hint}`);
+  }
+}
+
+/** カタログのディレクトリ自体が無い。UI_KITCHEN_CATALOG の誤指定が典型。 */
+export class CatalogNotFoundError extends UiKitchenError {
+  constructor(root: string) {
+    super("CATALOG_NOT_FOUND", `カタログが見つからない: ${root}\nUI_KITCHEN_CATALOG で場所を指定できる。`);
+  }
+}
+
+/** 生成先ファイルの読み書きに失敗した。ENOENT 以外を包んで理由を出すため。 */
+export class FileSystemError extends UiKitchenError {
+  constructor(message: string) {
+    super("FILESYSTEM_ERROR", message);
+  }
+}
+
+/** conflict などで生成を中止した。どのファイルが原因かを保持する。 */
+export class ApplyBlockedError extends UiKitchenError {
+  readonly conflicts: string[];
+
+  constructor(conflicts: string[]) {
+    super(
+      "APPLY_BLOCKED",
+      `内容の異なる既存ファイルがあるため何も書き込まなかった:\n${conflicts
+        .map((path) => `  ${path}`)
+        .join("\n")}\n上書きするなら --force を付ける。`,
+    );
+    this.conflicts = conflicts;
   }
 }
 
