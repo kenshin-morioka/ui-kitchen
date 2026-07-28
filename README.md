@@ -1,25 +1,66 @@
+[English](README.md) | [日本語](README.ja.md)
+
 # ui-kitchen
 
-個人 OSS 開発向けの UI テンプレート / コンポーネントカタログと、それを決定的に取り込む CLI。
+A catalog of reusable UI recipes, plus a CLI that copies them into a project deterministically.
 
-## これは何のためのものか
-
-UI を毎回 AI に推論で書かせると、品質・統一感が安定しない。ui-kitchen は一度品質を確認した UI をファイルとして保存し、以降は **推論ではなくコピー操作** で再利用する。
+Asking an AI to write UI from scratch every time gives you a different result every time: sometimes perfect, sometimes hallucinated, never consistent across projects. ui-kitchen removes the guesswork by storing UI you have already reviewed as **files**, and reducing the AI's job from "write the UI" to "pick a recipe and run the CLI".
 
 ```bash
-uikit list --kind block --tag auth   # カタログを検索
-uikit show web/blocks/auth-card      # 中身と使い方を確認
-uikit add web/blocks/auth-card       # 依存ごと決定的に生成
+uikit list --kind block --tag auth   # search the catalog
+uikit show web/blocks/auth-card      # inspect metadata, files and usage
+uikit add web/blocks/auth-card       # generate it, dependencies included
 ```
 
-AI の役割は「UI を書く」ではなく「カタログから選んで CLI を叩く」に縮小される。
+The same recipe always produces byte-identical output. No model is involved in generation — only schema validation, template variable substitution and file IO.
 
-## 状態
+## Why
 
-Phase 0（設計中）。設計は [docs/design.md](docs/design.md) を参照。
+- **Consistent** — every project draws from the same tokens and the same components
+- **Deterministic** — `add` is idempotent, and `--dry-run` shows the plan before anything is written
+- **Reviewed once** — you check the quality when the recipe is created, not on every generation
+- **Owned code** — recipes are copied into your project (the shadcn/ui philosophy), so you can edit them afterwards
 
-## スタック
+## Status
 
-React + TypeScript + Tailwind CSS + shadcn/ui / CLI は TypeScript（Bun 実行、pnpm workspace）。
+Phase 1. The CLI can initialize a project and add recipes; the catalog currently ships the design tokens and the `cn()` helper, with UI recipes landing one pull request at a time.
 
-Web フロントから開始し、`catalog/mobile/` を後から追加できる構成にしている。
+## Requirements
+
+[mise](https://mise.jdx.dev/) provides the toolchain (Node, pnpm, Bun) pinned in `mise.toml`.
+
+```bash
+mise install
+pnpm install
+```
+
+## Usage
+
+```bash
+# in the project that should receive the UI
+uikit init                                  # write ui-kitchen.json (paths, import alias, stack)
+uikit list --json                           # machine-readable catalog, for AI agents
+uikit show web/tokens/base
+uikit add web/tokens/base web/lib/cn        # resolves required recipes recursively
+uikit add web/primitives/button --dry-run   # show the plan without writing
+```
+
+Notes:
+
+- npm dependencies are never installed automatically. Missing ones are reported with the exact command to run
+- An existing file whose content differs is reported as `conflict` and left untouched unless `--force` is passed
+- `UI_KITCHEN_CATALOG=<path>` points the CLI at a different catalog
+
+## Stack
+
+React + TypeScript + Tailwind CSS + shadcn/ui for the recipes. The CLI is TypeScript on Bun, in a pnpm workspace.
+
+The catalog is scoped per platform (`catalog/web/…`), and the engine is platform-agnostic, so a mobile stack can be added later without touching existing recipes.
+
+## Documentation
+
+- [docs/design.md](docs/design.md) — design document: data model, CLI surface, roadmap (Japanese only for now)
+
+## License
+
+MIT

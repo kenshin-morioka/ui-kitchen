@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# 同じブランチで走っている古い CI は打ち切る。
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # 変更されたパスから、どのスタックの検査が必要かを判定する。
+  # main への push では取りこぼしを避けるため全て実行する。
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      typescript: ${{ steps.detect.outputs.typescript }}
+      catalog: ${{ steps.detect.outputs.catalog }}
+      workflows: ${{ steps.detect.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_PR" != "true" ]; then
+            echo "typescript=true" >> "$GITHUB_OUTPUT"
+            echo "catalog=true" >> "$GITHUB_OUTPUT"
+            echo "workflows=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "変更ファイル:"
+          echo "$changed"
+          # ツールチェイン設定の変更は全スタックに影響するので TypeScript 検査も回す。
+          matches() { echo "$changed" | grep -qE "$1"; }
+          if matches '^(packages/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|biome\.json|mise\.toml)'; then
+            echo "typescript=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "typescript=false" >> "$GITHUB_OUTPUT"
+          fi
+          if matches '^(catalog/|packages/(core|registry)/)'; then
+            echo "catalog=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "catalog=false" >> "$GITHUB_OUTPUT"
+          fi
+          if matches '^\.github/workflows/'; then
+            echo "workflows=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "workflows=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # TypeScript スタック: lint / format / 型 / ユニットテスト
+  typescript:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: pnpm install --frozen-lockfile
+      - name: lint / format (biome)
+        run: pnpm lint
+      - name: typecheck
+        run: pnpm typecheck
+      - name: unit test
+        run: pnpm test
+
+  # カタログ: recipe.yaml のスキーマ検証、依存の実在確認、インデックスの鮮度、
+  # および recipe が持つソース (ts/tsx/css) の lint。
+  catalog:
+    needs: changes
+    if: needs.changes.outputs.catalog == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: pnpm install --frozen-lockfile
+      - name: recipe の検証とインデックスの鮮度
+        run: pnpm catalog:validate
+      - name: recipe ソースの lint / format (biome)
+        run: pnpm lint:catalog
+
+  # workflow 自体の構文検査
+  workflows:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: actionlint
+        run: |
+          set -euo pipefail
+          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
+
+  # 必須チェックはこのジョブだけにする。スキップされたジョブは成功扱い、
+  # 失敗・キャンセルがあれば落とす。これにより paths 判定でスキップされた
+  # ジョブを必須チェックに指定してマージが永久に待たされる問題を避ける。
+  ci:
+    needs: [changes, typescript, catalog, workflows]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: 各スタックの結果を集約する
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -qE '"result": "(failure|cancelled)"'; then
+            echo "::error::いずれかのスタックの検査が失敗した"
+            exit 1
+          fi
+          echo "すべての必要な検査を通過した"

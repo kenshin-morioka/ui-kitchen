@@ -1,0 +1,29 @@
+id: web/tokens/base
+name: Base Design Tokens
+kind: tokens
+platform: web
+description: 配色・角丸・ダークモードのデザイントークン一式。全 recipe の見た目の土台。
+tags: [tokens, theme, dark-mode]
+
+stack:
+  framework: react
+  language: typescript
+  styling: tailwind
+
+files:
+  - from: files/tokens.css
+    to: "{{stylesDir}}/tokens.css"
+
+requires: []
+
+dependencies:
+  tailwindcss: ^4.1.0
+
+variants: []
+
+ai:
+  use_when: ui-kitchen の recipe を初めて導入するとき。他の recipe はすべてこのトークンに依存する
+  do_not:
+    - 個別のコンポーネントで色を直書きしない。必ず bg-primary / text-muted-foreground のようなトークン由来のクラスを使う
+    - トークンの変数名を変更しない。名前は shadcn/ui の慣習に合わせてあり、外部から持ち込むコードとの互換性が壊れる
+  integration: アプリのエントリ CSS で `@import "./tokens.css";` する (Tailwind v4 の @import "tailwindcss" はこのファイルが行う)

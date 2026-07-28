@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "module": "Preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "types": ["bun"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "paths": {
+      "@ui-kitchen/core": ["./packages/core/src/index.ts"],
+      "@ui-kitchen/adapter-web": ["./packages/adapter-web/src/index.ts"],
+      "@ui-kitchen/registry": ["./packages/registry/src/index.ts"]
+    }
+  },
+  "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"],
+  "exclude": ["node_modules", "catalog", "**/node_modules"]
+}

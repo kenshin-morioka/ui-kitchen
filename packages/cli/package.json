@@ -1,0 +1,17 @@
+{
+  "name": "@ui-kitchen/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "uikit": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@ui-kitchen/adapter-web": "workspace:*",
+    "@ui-kitchen/core": "workspace:*",
+    "@ui-kitchen/registry": "workspace:*"
+  }
+}

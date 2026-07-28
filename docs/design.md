@@ -71,8 +71,10 @@ ui-kitchen/
 │   │                       #   tsconfig paths 解決など
 │   └── registry/           # カタログのインデックス生成 (catalog.json) と CI 検証
 ├── catalog/
+│   ├── catalog.json        # 自動生成される検索インデックス（registry が生成）
 │   └── web/
 │       ├── tokens/         # デザイントークン（配色・余白・タイポ・radius）
+│       ├── lib/            # cn() などの UI 補助ユーティリティ
 │       ├── primitives/     # Button, Input, Badge … 最小単位
 │       ├── components/     # DataTable, Modal, Form … primitives の合成
 │       ├── blocks/         # LoginCard, PricingSection, Sidebar … 画面の一区画
@@ -107,7 +109,7 @@ catalog/web/blocks/auth-card/
 ```yaml
 id: web/blocks/auth-card
 name: Auth Card
-kind: block                    # tokens | primitive | component | block | layout | page
+kind: block                    # tokens | lib | primitive | component | block | layout | page
 platform: web
 description: メール + パスワードのログインカード。バリデーション付き。
 tags: [auth, form, login]
@@ -199,10 +201,24 @@ CLI があるだけでは AI は使わない。「自分で書いてしまう」
 | CLI 言語 | TypeScript |
 | CLI ランタイム | Bun |
 | パッケージ管理 | pnpm（workspace でモノレポ管理） |
+| Lint / Format | Biome（TS と CSS を 1 ツールで扱えるため） |
 
 React + Tailwind + shadcn を選ぶ理由は、AI の学習データが最も厚く、カタログに無い UI を新規生成させる場合のフォールバック品質が最も高いため。カタログが未成熟な初期ほどこの差が効く。
 
-## 9. ロードマップ
+## 9. リポジトリ運用
+
+カタログの質はレビュー可能性に依存するので、変更の入り口を固定する。
+
+- `main` は保護。直接 push / マージは管理者含めて禁止し、変更は必ず PR を通す（force push・ブランチ削除も不可、linear history）
+- **UI アイテム 1 件 = 1 PR**。まとめて出さない。差分が小さいほど「見た目を確認して合意する」というレビューが機能する
+- PR は作成時に作者を自動アサイン（`.github/workflows/auto-assign.yml`）、マージ後にブランチを自動削除
+- CI（`.github/workflows/ci.yml`）はスタック単位のジョブに分かれ、変更されたパスに応じて必要なものだけ走る
+  - `typescript`: Biome の lint / format、`tsc --noEmit`、`bun test`
+  - `catalog`: recipe.yaml のスキーマ検証、requires の実在確認、`catalog.json` の鮮度、recipe ソース（ts / tsx / css）の lint
+  - `workflows`: actionlint
+  - `ci`: 上記を集約するゲートジョブ。**必須チェックはこれ 1 つだけ**にする。パス判定でスキップされたジョブを必須指定すると PR が永久に待たされるため、スキップは成功扱い、失敗・キャンセルのみ落とす
+
+## 10. ロードマップ
 
 | Phase | 内容 | 完了条件 |
 | --- | --- | --- |
@@ -212,7 +228,7 @@ React + Tailwind + shadcn を選ぶ理由は、AI の学習データが最も厚
 | 3 | blocks / layouts / pages の拡充、`snippet` `context` `diff` `adopt`、AGENTS.md と Claude Code Skill の配布 | AI が自力でフローに乗る |
 | 4 | `catalog/mobile/` と `adapter-mobile` の追加 | web の recipe に手を入れずに mobile が並列で載る |
 
-## 10. 未決事項
+## 11. 未決事項
 
 - プレビューの持ち方: `preview.png` の手動管理か、Storybook / Ladle を入れて自動生成するか（初期は手動でも成立するが、カタログが増えると破綻する）
 - カタログのバージョニング: recipe 単位で破壊的変更が起きたときに、既に導入済みのプロジェクトへどう伝えるか（`uikit diff` で足りるか）

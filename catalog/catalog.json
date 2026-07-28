@@ -1,0 +1,33 @@
+{
+  "recipes": [
+    {
+      "id": "web/lib/cn",
+      "name": "cn() class merger",
+      "kind": "lib",
+      "platform": "web",
+      "description": "Tailwind のクラスを条件付きで合成し、競合するユーティリティを後勝ちで解決するヘルパー。",
+      "tags": [
+        "tailwind",
+        "utility"
+      ],
+      "requires": [],
+      "variants": [],
+      "use_when": "className を受け取って上書きできるコンポーネントを書くとき。primitives 系 recipe はすべてこれに依存する"
+    },
+    {
+      "id": "web/tokens/base",
+      "name": "Base Design Tokens",
+      "kind": "tokens",
+      "platform": "web",
+      "description": "配色・角丸・ダークモードのデザイントークン一式。全 recipe の見た目の土台。",
+      "tags": [
+        "dark-mode",
+        "theme",
+        "tokens"
+      ],
+      "requires": [],
+      "variants": [],
+      "use_when": "ui-kitchen の recipe を初めて導入するとき。他の recipe はすべてこのトークンに依存する"
+    }
+  ]
+}

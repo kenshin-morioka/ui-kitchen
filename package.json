@@ -1,0 +1,24 @@
+{
+  "name": "ui-kitchen",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "bun": ">=1.3.0"
+  },
+  "scripts": {
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome ci --error-on-warnings packages",
+    "lint:catalog": "biome ci --error-on-warnings catalog",
+    "fix": "biome check --write .",
+    "uikit": "bun packages/cli/src/index.ts",
+    "catalog:build": "bun packages/registry/src/build.ts",
+    "catalog:validate": "bun packages/registry/src/validate.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.6",
+    "@types/bun": "^1.3.0",
+    "typescript": "^5.9.0"
+  }
+}

@@ -1,0 +1,29 @@
+id: web/lib/cn
+name: cn() class merger
+kind: lib
+platform: web
+description: Tailwind のクラスを条件付きで合成し、競合するユーティリティを後勝ちで解決するヘルパー。
+tags: [utility, tailwind]
+
+stack:
+  framework: react
+  language: typescript
+  styling: tailwind
+
+files:
+  - from: files/cn.ts
+    to: "{{libDir}}/cn.ts"
+
+requires: []
+
+dependencies:
+  clsx: ^2.1.0
+  tailwind-merge: ^3.3.0
+
+variants: []
+
+ai:
+  use_when: className を受け取って上書きできるコンポーネントを書くとき。primitives 系 recipe はすべてこれに依存する
+  do_not:
+    - 文字列連結やテンプレートリテラルでクラスを組み立てない。競合クラスが両方残って意図しない見た目になる
+  integration: cn("base-classes", condition && "extra", className) の形で使う
