@@ -4,7 +4,8 @@ export class UiKitchenError extends Error {
 
   constructor(code: string, message: string) {
     super(message);
-    this.name = "UiKitchenError";
+    // サブクラスでも実際のクラス名が出るようにする。
+    this.name = new.target.name;
     this.code = code;
   }
 }
