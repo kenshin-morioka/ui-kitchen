@@ -1,7 +1,12 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve, sep } from "node:path";
-import { CatalogNotFoundError, RecipeValidationError, UiKitchenError } from "@ui-kitchen/core";
+import {
+  CatalogNotFoundError,
+  FileSystemError,
+  RecipeValidationError,
+  UiKitchenError,
+} from "@ui-kitchen/core";
 import {
   catalogIndexPath,
   catalogRootCandidates,
@@ -90,6 +95,23 @@ describe("repositoryCatalogRoot", () => {
     expect(() => repositoryCatalogRoot()).toThrow(CatalogNotFoundError);
     expect(outcome()).toContain(missing);
     expect(outcome()).toContain(ENV);
+  });
+
+  test("権限エラーを「存在しない」に潰さない", async () => {
+    // ENOENT 以外を false に潰すと、権限の問題なのに「どこにも存在しない」と
+    // 誤診断され、本当の原因が見えなくなる。
+    const root = await tempCatalog();
+    const locked = join(root, "locked");
+    await mkdir(join(locked, "catalog"), { recursive: true });
+    await chmod(locked, 0o000);
+    process.env[ENV] = join(locked, "catalog");
+
+    try {
+      if (process.getuid?.() === 0) return; // root では権限が効かない
+      expect(() => repositoryCatalogRoot()).toThrow(FileSystemError);
+    } finally {
+      await chmod(locked, 0o700);
+    }
   });
 });
 

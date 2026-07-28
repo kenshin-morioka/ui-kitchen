@@ -1,4 +1,4 @@
-import { statSync } from "node:fs";
+import { type Stats, statSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -132,19 +132,27 @@ function findPackageRoot(startDir: string): string {
   throw new CatalogNotFoundError(`${startDir} から上位に package.json が見つからない`);
 }
 
+/**
+ * ENOENT 以外 (EACCES など) を「存在しない」に潰さない。
+ * 潰すと権限の問題なのに「どこにも存在しない」という誤った診断になり、
+ * 本当の原因が見えなくなる。
+ */
 function isDirectory(path: string): boolean {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
+  return statKind(path)?.isDirectory() ?? false;
 }
 
 function isFile(path: string): boolean {
+  return statKind(path)?.isFile() ?? false;
+}
+
+function statKind(path: string): Stats | undefined {
   try {
-    return statSync(path).isFile();
-  } catch {
-    return false;
+    return statSync(path);
+  } catch (cause) {
+    if (isNotFound(cause)) return undefined;
+    throw new FileSystemError(
+      `${path} の状態を確認できない: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
   }
 }
 
