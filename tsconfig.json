@@ -12,7 +12,10 @@
     "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "noEmit": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@ui-kitchen/core": ["./packages/core/src/index.ts"]
+    }
   },
   "include": ["packages/*/src/**/*.ts", "packages/*/test/**/*.ts"],
   "exclude": ["node_modules", "catalog", "**/node_modules"]
