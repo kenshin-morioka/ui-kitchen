@@ -45,7 +45,15 @@ export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
 
 const kebabCase = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-const recipeIdPattern = /^[a-z]+\/[a-z]+\/[a-z0-9]+(?:-[a-z0-9]+)*$/;
+/**
+ * platform と kind ディレクトリを実際の値集合から組み立てる。
+ * 任意の `[a-z]+` を許すと `foo/bar/baz` のような requires が
+ * スキーマを通り、「recipe が見つからない」という分かりにくい
+ * エラーになるまで気付けない。
+ */
+const recipeIdPattern = new RegExp(
+  `^(?:${PLATFORMS.join("|")})/(?:${Object.values(KIND_DIRECTORIES).join("|")})/[a-z0-9]+(?:-[a-z0-9]+)*$`,
+);
 
 export const recipeId = z
   .string()
@@ -54,12 +62,26 @@ export const recipeId = z
     "recipe ID は <platform>/<kind-dir>/<name> 形式で指定する (例: web/primitives/button)",
   );
 
-/** 相対パスのみ許可し、ディレクトリ traversal と絶対パスを弾く。 */
+/** `/` と `\` の両方を区切りとして扱う。recipe は Windows でも読まれる。 */
+const pathSegments = (value: string): string[] => value.split(/[\\/]/);
+
+/**
+ * 相対パスのみ許可し、traversal と絶対パスを弾く。
+ * `from` は readFile に直接渡るため、区切り文字の差でここをすり抜けると
+ * カタログ外の任意ファイルを読めてしまう。
+ */
 const relativePath = z
   .string()
   .min(1)
-  .refine((value) => !value.startsWith("/"), "絶対パスは指定できない")
-  .refine((value) => !value.split("/").includes(".."), "'..' を含むパスは指定できない");
+  .refine((value) => !/^[\\/]/.test(value), "絶対パスは指定できない")
+  .refine((value) => !/^[A-Za-z]:[\\/]/.test(value), "ドライブレターから始まるパスは指定できない")
+  .refine((value) => !value.startsWith("~"), "ホームディレクトリ起点のパスは指定できない")
+  .refine((value) => !pathSegments(value).includes(".."), "'..' を含むパスは指定できない")
+  .refine((value) => {
+    // 末尾がファイル名になっていること。"." や "a/" はディレクトリを指すので拒否する。
+    const last = pathSegments(value).at(-1);
+    return last !== undefined && last !== "" && last !== ".";
+  }, "ファイルへのパスを指定する (ディレクトリは指定できない)");
 
 export const stackSchema = z.object({
   framework: z.string().min(1),
@@ -94,7 +116,15 @@ export const recipeSchema = z.object({
   description: z.string().min(1),
   tags: z.array(z.string().regex(kebabCase, "tag は kebab-case で指定する")).default([]),
   stack: stackSchema,
-  files: z.array(recipeFileSchema).min(1),
+  files: z
+    .array(recipeFileSchema)
+    .min(1)
+    // 同じ出力先を 2 回宣言すると後の 1 件が前を上書きし、生成結果が
+    // ファイルの並び順に依存する。決定性を保つためスキーマで弾く。
+    .refine(
+      (files) => new Set(files.map((file) => file.to)).size === files.length,
+      "同じ出力先 (to) を複数の files で指定できない",
+    ),
   requires: z.array(recipeId).default([]),
   /** npm 依存。値は semver range。CLI は不足を報告するだけで install はしない。 */
   dependencies: z.record(z.string().min(1), z.string().min(1)).default({}),

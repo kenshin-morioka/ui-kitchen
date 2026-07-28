@@ -18,11 +18,21 @@ export interface ExpandOptions {
  * テンプレート自体が構文的に壊れないため、実ファイルとして編集・確認できる。
  *   // {{#if variant.with-loading}}
  *   {{/if}}
+ * 末尾の `\r?` は CRLF 改行の recipe でも一致させるため。
  */
 const IF_LINE =
-  /^[ \t]*(?:\/\/|#|\/\*|\{\/\*|<!--)?[ \t]*\{\{#if[ \t]+variant\.([a-z0-9-]+)[ \t]*\}\}[ \t]*(?:\*\/|\*\/\}|-->)?[ \t]*$/;
-const END_LINE = /^[ \t]*(?:\/\/|#|\/\*|\{\/\*|<!--)?[ \t]*\{\{\/if\}\}[ \t]*(?:\*\/|\*\/\}|-->)?[ \t]*$/;
-const PLACEHOLDER = /\{\{([^{}]*)\}\}/g;
+  /^[ \t]*(?:\/\/|#|\/\*|\{\/\*|<!--)?[ \t]*\{\{#if[ \t]+variant\.([a-z0-9-]+)[ \t]*\}\}[ \t]*(?:\*\/|\*\/\}|-->)?[ \t]*\r?$/;
+const END_LINE = /^[ \t]*(?:\/\/|#|\/\*|\{\/\*|<!--)?[ \t]*\{\{\/if\}\}[ \t]*(?:\*\/|\*\/\}|-->)?[ \t]*\r?$/;
+
+/**
+ * 変数参照は `{{@name}}` と書く。`@` を必須にしているのは JSX の二重波括弧
+ * (`style={{ color: "red" }}` や `animate={{opacity}}`) と衝突させないため。
+ * `@` 無しにすると、これらを変数参照と誤認して展開が壊れる。
+ */
+const PLACEHOLDER = /\{\{[ \t]*@([A-Za-z][A-Za-z0-9]*)?[ \t]*\}\}/g;
+
+/** 条件ブロックの取捨をすり抜けた `{{#if}}` / `{{/if}}` の痕跡。 */
+const LEFTOVER_MARKER = /\{\{[ \t]*[#/]/;
 
 /**
  * テンプレートを展開する。処理は「variant 条件ブロックの取捨」と
@@ -64,6 +74,10 @@ export function expandTemplate(source: string, options: ExpandOptions): string {
       continue;
     }
 
+    // 破棄する行でも変数名だけは検証する。そうしないと、無効な variant の
+    // ブロックに書かれた typo が variant を有効にした瞬間まで見つからない。
+    assertKnownVariables(line, label, index + 1);
+
     if (!open || open.keep) {
       output.push(line);
     }
@@ -73,20 +87,43 @@ export function expandTemplate(source: string, options: ExpandOptions): string {
     throw new TemplateError(`${label}:${open.line} 閉じられていない {{#if variant.${open.variant}}}`);
   }
 
-  return substituteVariables(output.join("\n"), options.vars, label);
+  const expanded = output.join("\n");
+  const leftover = expanded.split("\n").findIndex((line) => LEFTOVER_MARKER.test(line));
+  if (leftover >= 0) {
+    throw new TemplateError(
+      `${label}:${leftover + 1} 条件ブロックの記法が壊れている。{{#if variant.<name>}} と {{/if}} はそれぞれ独立した行に書く`,
+    );
+  }
+
+  return substituteVariables(expanded, options.vars, label);
 }
 
-/** `{{name}}` を置換する。未知の変数名はエラーにして黙って残さない。 */
+/** `{{@name}}` を置換する。未知の変数名はエラーにして黙って残さない。 */
 export function substituteVariables(source: string, vars: TemplateVars, label = "template"): string {
-  return source.replace(PLACEHOLDER, (_match, rawName: string) => {
-    const name = rawName.trim();
+  return source.replace(PLACEHOLDER, (match, rawName: string | undefined) => {
+    const name = rawName ?? "";
     if (isTemplateVariable(name)) {
       return vars[name];
     }
-    throw new TemplateError(
-      `${label} に未知のテンプレート変数がある: {{${name}}}\n使用できる変数: ${TEMPLATE_VARIABLES.join(", ")}`,
-    );
+    throw new TemplateError(unknownVariableMessage(label, match, name));
   });
+}
+
+/** 行内の `{{@name}}` が既知の変数かどうかだけを検査する (置換はしない)。 */
+function assertKnownVariables(line: string, label: string, lineNumber: number): void {
+  for (const match of line.matchAll(PLACEHOLDER)) {
+    const name = match[1] ?? "";
+    if (!isTemplateVariable(name)) {
+      throw new TemplateError(unknownVariableMessage(`${label}:${lineNumber}`, match[0], name));
+    }
+  }
+}
+
+function unknownVariableMessage(label: string, raw: string, name: string): string {
+  const shown = name === "" ? raw : `{{@${name}}}`;
+  return `${label} に未知のテンプレート変数がある: ${shown}\n使用できる変数: ${TEMPLATE_VARIABLES.map(
+    (variable) => `{{@${variable}}}`,
+  ).join(", ")}`;
 }
 
 function isTemplateVariable(name: string): name is TemplateVariable {
