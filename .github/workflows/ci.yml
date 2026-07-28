@@ -1,0 +1,125 @@
+name: CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  # main の CI は打ち切らない。健全性の履歴に穴を空けないため。
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # 変更されたパスから、どのスタックの検査が必要かを判定する。
+  # main への push では取りこぼしを避けるため全て実行する。
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      typescript: ${{ steps.detect.outputs.typescript }}
+      workflows: ${{ steps.detect.outputs.workflows }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: detect
+        env:
+          IS_PR: ${{ github.event_name == 'pull_request' }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_PR" != "true" ]; then
+            {
+              echo "typescript=true"
+              echo "workflows=true"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # 2 点ドット: base が進むと base 側の変更も差分に含まれ過剰にジョブが走るが、
+          # 取りこぼすより安全なのでこちらを使う。
+          changed=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          echo "変更ファイル:"
+          echo "$changed"
+          # here-string を使う。パイプにすると grep -q の早期終了で echo が SIGPIPE で死に、
+          # pipefail によって「マッチしたのに false」になる (大きい PR で必ず踏む)。
+          matches() { grep -qE "$1" <<<"$changed"; }
+          typescript=false
+          workflows=false
+          if matches '^(packages/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|biome\.json|mise\.toml|\.github/workflows/)'; then
+            typescript=true
+          fi
+          if matches '^\.github/workflows/'; then
+            workflows=true
+          fi
+          {
+            echo "typescript=$typescript"
+            echo "workflows=$workflows"
+          } >> "$GITHUB_OUTPUT"
+
+  # TypeScript スタック: lint / format / 型 / ユニットテスト
+  typescript:
+    needs: changes
+    if: needs.changes.outputs.typescript == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: pnpm install --frozen-lockfile
+      - name: lint / format (biome)
+        run: pnpm lint
+      - name: typecheck
+        run: pnpm typecheck
+      - name: unit test
+        run: pnpm test
+
+  # workflow 自体の構文検査。actionlint は mise で固定バージョンを入れる
+  # (curl | bash はスクリプトもバイナリも可変で、CI に任意コード実行の面が出る)。
+  workflows:
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: jdx/mise-action@v3
+      - run: actionlint -color
+
+  # 必須チェックはこのジョブだけにする。パス判定でスキップされたジョブを
+  # 必須指定すると PR が永久に待たされるため、集約側で成否を判断する。
+  ci:
+    needs: [changes, typescript, workflows]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      # スキップは成功扱いにするが、判定ジョブ自体が失敗した場合や出力が
+      # 空の場合は「検査が丸ごと飛んだのに緑」になるので明示的に落とす。
+      - name: 判定ジョブの結果を確認する
+        if: needs.changes.result != 'success'
+        run: |
+          echo "::error::変更パスの判定ジョブが ${{ needs.changes.result }} で終了した"
+          exit 1
+      - name: 判定結果が空でないことを確認する
+        env:
+          TYPESCRIPT: ${{ needs.changes.outputs.typescript }}
+          WORKFLOWS: ${{ needs.changes.outputs.workflows }}
+        run: |
+          set -euo pipefail
+          for value in "$TYPESCRIPT" "$WORKFLOWS"; do
+            case "$value" in
+              true | false) ;;
+              *)
+                echo "::error::判定結果が true/false でない: '$value'"
+                exit 1
+                ;;
+            esac
+          done
+      - name: 各スタックの結果を集約する
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::いずれかのスタックの検査が失敗した"
+          exit 1
+      - run: echo "すべての必要な検査を通過した"
