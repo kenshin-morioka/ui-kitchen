@@ -87,3 +87,13 @@ export class ConfigNotFoundError extends ConfigError {
     super(message, "CONFIG_NOT_FOUND");
   }
 }
+
+/** 設定ファイルが既にある。排他的作成が EEXIST で失敗したときに使う。 */
+export class ConfigExistsError extends ConfigError {
+  constructor(path: string) {
+    super(
+      `${path} は既に存在する。作り直すなら --force を付ける (推測値で上書きされるので手で直した内容は失われる)。`,
+      "CONFIG_EXISTS",
+    );
+  }
+}

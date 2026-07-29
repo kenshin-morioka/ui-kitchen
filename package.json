@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome ci --error-on-warnings packages",
     "fix": "biome check --write .",
+    "uikit": "bun packages/cli/src/main.ts",
     "catalog:build": "bun packages/registry/src/build.ts",
     "catalog:validate": "bun packages/registry/src/validate.ts"
   },

@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONFIG_FILENAME, findConfig, loadConfig, writeConfig } from "../src/config.ts";
-import { ConfigError, ConfigNotFoundError } from "../src/errors.ts";
+import { ConfigError, ConfigExistsError, ConfigNotFoundError } from "../src/errors.ts";
 import type { ProjectConfig } from "../src/schema.ts";
 
 /** CI ランナーでも動くよう OS の一時ディレクトリを使う。 */
@@ -161,5 +161,43 @@ describe("writeConfig", () => {
     await expect(
       writeConfig(join(missing, CONFIG_FILENAME), configOf("src/components")),
     ).rejects.toBeInstanceOf(ConfigError);
+  });
+
+  test("既定では排他的に作成し、既存ファイルには触らない", async () => {
+    const dir = await tempDir();
+    const path = join(dir, CONFIG_FILENAME);
+    await writeFile(path, "手で書いた内容\n", "utf8");
+
+    // 「存在を確認してから書く」形だと、確認と書き込みの間に他プロセスが作った
+    // ファイルを消してしまう。書き込み自体で弾けていることを確認する。
+    await expect(writeConfig(path, configOf("src/components"))).rejects.toBeInstanceOf(ConfigExistsError);
+    expect(await readFile(path, "utf8")).toBe("手で書いた内容\n");
+  });
+
+  test("overwrite を指定すれば上書きする", async () => {
+    const dir = await tempDir();
+    const path = join(dir, CONFIG_FILENAME);
+    await writeFile(path, "手で書いた内容\n", "utf8");
+
+    await writeConfig(path, configOf("src/components"), { overwrite: true });
+    expect((await loadConfig(path)).config).toEqual(configOf("src/components"));
+    // 一時ファイルを残さない。プロジェクトに .tmp が散る。
+    expect(await readdir(dir)).toEqual([CONFIG_FILENAME]);
+  });
+
+  test("上書きに失敗しても既存の内容を壊さない", async () => {
+    const dir = await tempDir();
+    const path = join(dir, CONFIG_FILENAME);
+    await writeFile(path, "手で書いた内容\n", "utf8");
+    // 書き込み中の失敗を再現する。一時ファイルの位置を先に埋めておくと
+    // 排他的作成が EEXIST で落ち、置換前に中断する状況になる。
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, "先に居座っているファイル\n", "utf8");
+
+    await expect(writeConfig(path, configOf("src/components"), { overwrite: true })).rejects.toBeInstanceOf(
+      ConfigError,
+    );
+    // 切り詰めが起きていれば空か壊れた JSON になる。
+    expect(await readFile(path, "utf8")).toBe("手で書いた内容\n");
   });
 });

@@ -23,7 +23,7 @@ The same recipe always produces byte-identical output. No model is involved in g
 
 ## Status
 
-Under construction. The recipe schema and the template engine are in place; dependency resolution, the CLI itself and the catalog are landing one pull request at a time, so nothing is installable yet. The commands below describe the intended interface.
+Under construction. The engine and the CLI (`init` / `list` / `show` / `add`) are in place; the catalog is landing one recipe at a time, so there is nothing to add yet. Inside this repository the CLI runs as `pnpm uikit <command>` — it is not published as a package.
 
 ## Requirements
 
