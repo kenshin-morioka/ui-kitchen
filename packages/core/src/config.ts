@@ -1,6 +1,6 @@
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
-import { ConfigError, ConfigNotFoundError } from "./errors.ts";
+import { ConfigError, ConfigExistsError, ConfigNotFoundError } from "./errors.ts";
 import { type ProjectConfig, projectConfigSchema } from "./schema.ts";
 
 export const CONFIG_FILENAME = "ui-kitchen.json";
@@ -69,7 +69,21 @@ export async function loadConfig(path: string): Promise<LoadedConfig> {
   return { config: parsed.data, path, projectRoot: dirname(path) };
 }
 
-export async function writeConfig(path: string, config: ProjectConfig): Promise<void> {
+export interface WriteConfigOptions {
+  /** 既存ファイルを上書きする。既定は排他的作成 (既存なら CONFIG_EXISTS)。 */
+  overwrite?: boolean;
+}
+
+/**
+ * 設定を書き出す。overwrite を渡さない限り**排他的に作成する** (`wx`)。
+ * 「存在を確認してから書く」形にすると確認と書き込みの間に他プロセスが作った
+ * ファイルを消してしまう。上書きの可否は呼び出し側の明示に委ねる。
+ */
+export async function writeConfig(
+  path: string,
+  config: ProjectConfig,
+  options: WriteConfigOptions = {},
+): Promise<void> {
   // 意図しない場所にプロジェクトを作らないため mkdir はせず、存在しないことを伝える。
   const dir = dirname(resolve(path));
   if (!(await isDirectory(dir))) {
@@ -77,7 +91,17 @@ export async function writeConfig(path: string, config: ProjectConfig): Promise<
   }
 
   const body = { $schema: "https://kenshin-morioka.github.io/ui-kitchen/config.schema.json", ...config };
-  await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, "utf8");
+  try {
+    await writeFile(path, `${JSON.stringify(body, null, 2)}\n`, {
+      encoding: "utf8",
+      flag: options.overwrite ? "w" : "wx",
+    });
+  } catch (cause) {
+    if (isAlreadyExists(cause)) throw new ConfigExistsError(path);
+    throw new ConfigError(
+      `${path} に書き込めない: ${cause instanceof Error ? cause.message : String(cause)}`,
+    );
+  }
 }
 
 async function isDirectory(path: string): Promise<boolean> {
@@ -89,7 +113,18 @@ async function isDirectory(path: string): Promise<boolean> {
 }
 
 function isNotFound(cause: unknown): boolean {
-  return typeof cause === "object" && cause !== null && "code" in cause && cause.code === "ENOENT";
+  return codeOf(cause) === "ENOENT";
+}
+
+function isAlreadyExists(cause: unknown): boolean {
+  return codeOf(cause) === "EEXIST";
+}
+
+function codeOf(cause: unknown): string | undefined {
+  if (typeof cause === "object" && cause !== null && "code" in cause && typeof cause.code === "string") {
+    return cause.code;
+  }
+  return undefined;
 }
 
 function stripSchemaKey(value: unknown): unknown {

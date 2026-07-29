@@ -64,8 +64,11 @@ function renderLines(recipes: CatalogIndexEntry[], total: number): string[] {
 /** kind は列挙値 (primitive) でもディレクトリ名 (primitives) でも受け取る。 */
 function parseKind(value: string): RecipeKind {
   if ((RECIPE_KINDS as readonly string[]).includes(value)) return value as RecipeKind;
-  const fromDirectory = DIRECTORY_KINDS[value];
-  if (fromDirectory) return fromDirectory;
+  // 所有プロパティだけを見る。DIRECTORY_KINDS は Object.fromEntries 由来の通常の
+  // オブジェクトなので、素の添字アクセスでは `constructor` や `__proto__` が
+  // 継承値を返し、USAGE エラーにならずに「0 件」という誤った結果になる。
+  const fromDirectory = Object.hasOwn(DIRECTORY_KINDS, value) ? DIRECTORY_KINDS[value] : undefined;
+  if (fromDirectory !== undefined) return fromDirectory;
   throw new UsageError(
     `未知の kind: ${value}\n使用できる kind: ${RECIPE_KINDS.join(", ")}\nディレクトリ名でも指定できる: ${Object.values(KIND_DIRECTORIES).join(", ")}`,
   );

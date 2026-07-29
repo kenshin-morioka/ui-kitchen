@@ -1,7 +1,7 @@
 import { lstat } from "node:fs/promises";
 import { join } from "node:path";
 import { detectWebProject } from "@ui-kitchen/adapter-web";
-import { CONFIG_FILENAME, FileSystemError, UiKitchenError, writeConfig } from "@ui-kitchen/core";
+import { CONFIG_FILENAME, FileSystemError, writeConfig } from "@ui-kitchen/core";
 import type { ProjectTarget } from "./project.ts";
 import type { CommandResult } from "./result.ts";
 
@@ -18,17 +18,13 @@ export interface InitOptions {
 export async function runInit(options: InitOptions): Promise<CommandResult> {
   const { target, force } = options;
   const path = join(target.cwd, CONFIG_FILENAME);
-  const existed = await exists(path);
-
-  if (existed && !force) {
-    throw new UiKitchenError(
-      "CONFIG_EXISTS",
-      `${path} は既に存在する。作り直すなら --force を付ける (推測値で上書きされるので手で直した内容は失われる)。`,
-    );
-  }
+  // 既存判定は「作成した」と「上書きした」を書き分けるためだけに使う。
+  // 上書きを止める判定は writeConfig の排他的作成に任せる。ここで判定して
+  // 弾く形にすると、判定と書き込みの間に他プロセスが作ったファイルを消す。
+  const existed = force ? await exists(path) : false;
 
   const detected = await detectWebProject(target.cwd);
-  await writeConfig(path, detected.config);
+  await writeConfig(path, detected.config, { overwrite: force });
 
   const { config, notes } = detected;
   const lines = [

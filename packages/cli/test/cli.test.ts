@@ -120,8 +120,11 @@ describe("init", () => {
     const project = await tempDir("project");
     await writeProject(project);
 
+    const before = await readFile(join(project, "ui-kitchen.json"), "utf8");
     const blocked = await uikit(["init", "--cwd", project], { catalog });
     expectError(blocked, "CONFIG_EXISTS");
+    // 弾いたときに書き込みが起きていないこと (排他的作成に任せている)。
+    expect(await readFile(join(project, "ui-kitchen.json"), "utf8")).toBe(before);
 
     const forced = await uikit(["init", "--cwd", project, "--force"], { catalog });
     expect(forced.exitCode).toBe(0);
@@ -156,6 +159,15 @@ describe("list", () => {
     const result = await uikit(["list", "--kind", "widget"], { catalog });
     expectError(result, "USAGE");
     expect(result.stderr).toContain("使用できる kind");
+  });
+
+  test("Object.prototype 由来の名前を kind として受理しない", async () => {
+    const catalog = await catalogWith("button");
+    // 素の添字アクセスだと継承値が返り、USAGE エラーにならず「0 件」になる。
+    for (const name of ["constructor", "__proto__", "toString"]) {
+      const result = await uikit(["list", "--kind", name], { catalog });
+      expectError(result, "USAGE");
+    }
   });
 });
 

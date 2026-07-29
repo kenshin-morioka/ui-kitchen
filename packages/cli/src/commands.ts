@@ -62,7 +62,7 @@ export const COMMANDS: Record<CommandName, CommandDefinition> = {
   },
   show: {
     summary: "recipe のメタ情報・生成されるファイル・依存を表示する",
-    usage: "uikit show <recipe-id>",
+    usage: "uikit show <recipe-id> [options]",
     options: { ...COMMON_OPTIONS },
     notes: ["出力先はテンプレート変数のまま表示する。展開後のパスは 'uikit add --dry-run' で確認する。"],
   },
