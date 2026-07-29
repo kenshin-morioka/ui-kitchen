@@ -6,21 +6,7 @@
 
 各項目の「既知の要修正点」は、実装前に別コンテキストのレビューで実測確認された不具合。叩き台をそのまま採用すると踏むので、最初から塞いだ形で実装する。
 
-## 1. `packages/cli` — `uikit init` / `list` / `show` / `add`
-
-`core` と `adapter-web` と `registry` を繋いで CLI にする。
-
-既知の要修正点:
-
-- **`--json` 指定時はエラーも JSON で返す。** 今の設計だとエラーは常に非 JSON（`error[CODE] message`）で、JSON を期待している呼び出し側が解釈できない。`{"error":{"code":"...","message":"..."}}` を出す
-- **`--cwd` を明示したら上方探索しない。** `init` は `--cwd` 直下に `ui-kitchen.json` を作るのに、`add` は上方探索するため意味が食い違う。monorepo ルートに設定があると `--cwd apps/web` を無視して祖先の設定・祖先の出力先に生成してしまう
-- **`--dry-run` でも conflict があれば非 0 を返すか、JSON に `blocked: true` を明示する。** 「まず dry-run させる」運用を推奨しているので、終了コードだけを見る呼び出し側が「適用可能」と誤判断する
-- **未知オプションのエラーに HELP を添える。** 今は Node の英語メッセージが素で出る上、`--` を使えという無関係な助言が付く
-- `--help` と `--json` の同時指定で非 JSON のヘルプが出る点も揃える
-
-接続点の注意: `adapter-web` の `findMissingDependencies` の第 2 引数は `Record<string,string>` ではなく `InstalledDependencies`（`{ resolved, peer }`）。`findIncompatibleDependencies`（範囲不一致）も別枠で報告する。
-
-## 2. CI に `catalog` ジョブ + `tokens/base` と `lib/cn` の recipe
+## 1. CI に `catalog` ジョブ + `tokens/base` と `lib/cn` の recipe
 
 `catalog/` が初めて入る PR。`lint:catalog` スクリプト（`biome ci --error-on-warnings catalog`）と CI の `catalog` ジョブ（`pnpm catalog:validate` + `pnpm lint:catalog`、`catalog/` と `packages/(core|registry)/` の変更で起動）を併せて追加する。
 
@@ -32,19 +18,21 @@
 - `* { border-color }` が preflight のリセット対象（`::after` `::before` `::backdrop` `::file-selector-button`）をカバーしていない
 - `@import "tailwindcss"` を recipe 側で持つと、monorepo でルートからビルドする消費者でソース検出範囲がずれる。`recipe.yaml` の `integration` に `source()` の調整が必要な旨を書くか、`@import` をアプリ側の責務に移す
 
-## 3. `catalog/web/primitives/*` を 1 件ずつ
+## 2. `catalog/web/primitives/*` を 1 件ずつ
 
 `button` → `input` → `card` → `badge` → `label` → `select` → `checkbox` の順。**1 recipe = 1 PR。**
 
 各 PR に含めるもの: `recipe.yaml`、`files/`、`README.md`、`pnpm catalog:build` で再生成した `catalog.json`、実プロジェクトへの `uikit add` の動作確認結果。
 
-## 4. 残っている CI の指摘
+CLI が入ったので、動作確認は `UI_KITCHEN_CATALOG=<このリポジトリの catalog> pnpm uikit add <id> --cwd <対象> --dry-run` で取れる。
+
+## 3. 残っている CI の指摘
 
 - `actions/checkout@v5` は現行 v7、`jdx/mise-action@v3` は現行 v4。更新して、少なくとも `mise-action` は commit SHA で pin する
 - PR の base を付け替え（retarget）しても CI が再実行されない（`on: pull_request` の既定 types に base 変更が含まれない）。古い base 前提の判定が必須チェックとして残る
 - `catalog/**/*.ts` は `tsconfig.json` の `exclude` に入っているため型検査されていない（消費側の依存が root に無いので現状は妥当な割り切り。将来は catalog 用の別 tsconfig + ダミー依存で型検査する）
 
-## 5. その後の構想（着手前に設計を詰める）
+## 4. その後の構想（着手前に設計を詰める）
 
 - `uikit doctor` — 前提の検証（tailwind 設定、importAlias、依存）
 - `uikit snippet` / `uikit context` — ファイルを書かずにコード片 / `ai:` セクションを出力。AI に部分的に渡す用途
@@ -52,3 +40,11 @@
 - `AGENTS.md` テンプレートの配布と Claude Code skill の同梱（`uikit init` が設置）。CLI があるだけでは AI は使わないので、フローに乗せる強制力が必要
 - `examples/web-vite-react` — カタログの動作確認とプレビュー
 - `catalog/mobile/` と `packages/adapter-mobile`（`core` に手を入れずに載ることが完了条件）
+
+## 実装中に分かったこと
+
+- `uikit add` は `adapter-web` を直接 import している。プラットフォームが増えたら、`config.platform` から adapter を選ぶ層を `packages/cli` 側に切る（`core` には持ち込まない）
+- 引数解析は `node:util` の `parseArgs` を使わず自前（`packages/cli/src/args.ts`）。未知オプションのメッセージが英語で、かつ「`--` を使え」という無関係な助言が付いて他のエラーと形が揃わないため
+- `--json` の判定は引数解析より先に生の `argv` を走査して行う。解析自体が失敗したときも出力形式を JSON に揃える必要があるため
+- `findConfig` が「設定が無い」ときに投げるのは `ConfigNotFoundError`（`CONFIG_NOT_FOUND`）。以前は `CONFIG_INVALID` で、壊れている場合と区別できなかった
+- `catalogRootCandidates()` は `packages/registry` の位置を起点にする。CLI から呼んでも探索先は変わらない

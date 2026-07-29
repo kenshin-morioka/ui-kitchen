@@ -24,6 +24,18 @@ importers:
         specifier: workspace:*
         version: link:../core
 
+  packages/cli:
+    dependencies:
+      '@ui-kitchen/adapter-web':
+        specifier: workspace:*
+        version: link:../adapter-web
+      '@ui-kitchen/core':
+        specifier: workspace:*
+        version: link:../core
+      '@ui-kitchen/registry':
+        specifier: workspace:*
+        version: link:../registry
+
   packages/core:
     dependencies:
       yaml:

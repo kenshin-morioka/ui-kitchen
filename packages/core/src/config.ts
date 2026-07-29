@@ -34,7 +34,8 @@ export async function findConfig(startDir: string): Promise<LoadedConfig> {
     dir = parent;
   }
 
-  throw new ConfigError(
+  // 「無い」ことを CONFIG_INVALID として返すと、設定が壊れている場合と区別できない。
+  throw new ConfigNotFoundError(
     `${CONFIG_FILENAME} が見つからない (${from} から上位を探索した)。'uikit init' で作成する。`,
   );
 }
