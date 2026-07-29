@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CONFIG_FILENAME, findConfig, loadConfig, writeConfig } from "../src/config.ts";
@@ -181,5 +181,23 @@ describe("writeConfig", () => {
 
     await writeConfig(path, configOf("src/components"), { overwrite: true });
     expect((await loadConfig(path)).config).toEqual(configOf("src/components"));
+    // 一時ファイルを残さない。プロジェクトに .tmp が散る。
+    expect(await readdir(dir)).toEqual([CONFIG_FILENAME]);
+  });
+
+  test("上書きに失敗しても既存の内容を壊さない", async () => {
+    const dir = await tempDir();
+    const path = join(dir, CONFIG_FILENAME);
+    await writeFile(path, "手で書いた内容\n", "utf8");
+    // 書き込み中の失敗を再現する。一時ファイルの位置を先に埋めておくと
+    // 排他的作成が EEXIST で落ち、置換前に中断する状況になる。
+    const temporary = `${path}.${process.pid}.tmp`;
+    await writeFile(temporary, "先に居座っているファイル\n", "utf8");
+
+    await expect(writeConfig(path, configOf("src/components"), { overwrite: true })).rejects.toBeInstanceOf(
+      ConfigError,
+    );
+    // 切り詰めが起きていれば空か壊れた JSON になる。
+    expect(await readFile(path, "utf8")).toBe("手で書いた内容\n");
   });
 });
