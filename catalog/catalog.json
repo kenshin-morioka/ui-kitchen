@@ -1,0 +1,35 @@
+{
+  "recipes": [
+    {
+      "id": "web/lib/cn",
+      "name": "cn",
+      "kind": "lib",
+      "platform": "web",
+      "description": "クラス名を結合するユーティリティ。競合する Tailwind のユーティリティを後勝ちで解決するので、呼び出し側から className で上書きできる。",
+      "tags": [
+        "styling",
+        "utility"
+      ],
+      "requires": [
+        "web/tokens/base"
+      ],
+      "variants": [],
+      "use_when": "コンポーネントが className を受け取って既定のクラスに重ねるとき。\nカタログの primitive はすべてこれを requires しているので、通常は個別に\n指定する必要はない。\n"
+    },
+    {
+      "id": "web/tokens/base",
+      "name": "Base tokens",
+      "kind": "tokens",
+      "platform": "web",
+      "description": "色・角丸のデザイントークン。shadcn/ui と同じ CSS 変数名なので、外から持ち込んだ shadcn のコードがそのまま動く。",
+      "tags": [
+        "dark-mode",
+        "theme",
+        "tokens"
+      ],
+      "requires": [],
+      "variants": [],
+      "use_when": "カタログの recipe を 1 件でも導入するとき。bg-primary / text-muted-foreground /\nrounded-lg などのクラスはすべてこのトークンが定義する。他の recipe はこれを\nrequires しているので、通常は個別に指定する必要はない。\n"
+    }
+  ]
+}

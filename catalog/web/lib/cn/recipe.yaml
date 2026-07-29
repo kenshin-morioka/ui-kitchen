@@ -1,0 +1,33 @@
+id: web/lib/cn
+name: cn
+kind: lib
+platform: web
+description: クラス名を結合するユーティリティ。競合する Tailwind のユーティリティを後勝ちで解決するので、呼び出し側から className で上書きできる。
+tags: [utility, styling]
+stack:
+  framework: react
+  language: typescript
+  styling: tailwind
+files:
+  - from: files/cn.ts
+    to: "{{@libDir}}/cn.ts"
+requires: [web/tokens/base]
+dependencies:
+  clsx: "^2.1.0"
+  tailwind-merge: "^3.0.0"
+ai:
+  use_when: |
+    コンポーネントが className を受け取って既定のクラスに重ねるとき。
+    カタログの primitive はすべてこれを requires しているので、通常は個別に
+    指定する必要はない。
+  do_not:
+    - 文字列連結やテンプレートリテラルでクラス名を組み立てない。競合するユーティリティが両方残り、どちらが効くかが CSS の出力順に依存する
+    - clsx や twMerge を直接 import しない。cn を経由しないと後勝ちの解決が漏れる
+  integration: |
+    出力先は lib/cn.ts で、shadcn が作る lib/utils.ts とは別ファイル。同じ
+    utils.ts に書き込むと shadcn init 済みのプロジェクトで常に conflict になり、
+    add が一切通らなくなるため意図的に分けている。
+
+    外から持ってきた shadcn のコードは @/lib/utils から cn を import している。
+    そのコードを使うなら import 先をこちらに向けるか、lib/utils.ts から
+    export { cn } from "./cn" で再輸出して 1 つの実装に寄せる。

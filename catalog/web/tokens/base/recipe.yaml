@@ -1,0 +1,39 @@
+id: web/tokens/base
+name: Base tokens
+kind: tokens
+platform: web
+description: 色・角丸のデザイントークン。shadcn/ui と同じ CSS 変数名なので、外から持ち込んだ shadcn のコードがそのまま動く。
+tags: [tokens, theme, dark-mode]
+stack:
+  framework: react
+  language: typescript
+  styling: tailwind
+  ui: shadcn
+files:
+  - from: files/tokens.css
+    to: "{{@stylesDir}}/tokens.css"
+dependencies:
+  tailwindcss: "^4.0.0"
+ai:
+  use_when: |
+    カタログの recipe を 1 件でも導入するとき。bg-primary / text-muted-foreground /
+    rounded-lg などのクラスはすべてこのトークンが定義する。他の recipe はこれを
+    requires しているので、通常は個別に指定する必要はない。
+  do_not:
+    - 色・余白・角丸を bg-[#111] や rounded-[10px] のように直書きしない。トークン由来のクラス (bg-primary / rounded-lg) を使う
+    - text-destructive-foreground を使わない。このトークンは定義していない (shadcn 現行版も削除済みで、destructive な面の文字色は text-white を直書きする)
+    # `dark:` や `:root` のように `:` を含む行はクォートする。素で書くと YAML の
+    # マッピングとして解釈され、スキーマ検証で「文字列を期待した」と落ちる。
+    - "dark: を機能させるために .dark クラスをルート要素に付ける必要がある。prefers-color-scheme では切り替わらない"
+    - ":root の値を書き換えてテーマを変える場合も変数名は変えない。名前を変えると外から持ち込む shadcn のコードが壊れる"
+  integration: |
+    アプリのエントリから読み込む (例: main.tsx で import "@/styles/tokens.css")。
+    このファイルが @import "tailwindcss" を持つので、他に Tailwind を読み込む
+    エントリを作らない。二重に読み込むと同じユーティリティが 2 回出力される。
+
+    monorepo でアプリの外 (packages/ui など) にコンポーネントを置く場合、Tailwind の
+    ソース検出はこの CSS があるディレクトリを起点にするため、外のファイルのクラスが
+    拾われない。@source "../../packages/ui/src" のように明示的に足す。
+
+    テーマを変えるときは :root と .dark の値だけを差し替える。@theme inline の
+    対応付けと --radius からの倍率は触らない (角丸のスケールが崩れる)。
