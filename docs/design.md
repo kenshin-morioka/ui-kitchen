@@ -120,9 +120,9 @@ stack:                         # 前提スタック。合わないプロジェ�
 
 files:
   - from: files/auth-card.tsx
-    to: "{{componentsDir}}/blocks/auth-card.tsx"
+    to: "{{@componentsDir}}/blocks/auth-card.tsx"
   - from: files/use-auth-form.ts
-    to: "{{hooksDir}}/use-auth-form.ts"
+    to: "{{@hooksDir}}/use-auth-form.ts"
 
 requires:                      # 他 recipe への依存。再帰的に解決される
   - web/primitives/button

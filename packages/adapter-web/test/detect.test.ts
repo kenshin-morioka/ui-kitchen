@@ -113,7 +113,7 @@ describe("detectWebProject", () => {
     expect(detected.config.importAlias).toBe("#/");
   });
 
-  test("部分エイリアスしか無い場合は採用せず、仮置きしたことを notes に書く (d, f)", async () => {
+  test("同じ深さの部分エイリアスが並ぶ場合は選ばず、仮置きしたことを notes に書く (d, f)", async () => {
     const root = await tempDir();
     await mkdir(join(root, "src"));
     await write(
@@ -127,10 +127,10 @@ describe("detectWebProject", () => {
     );
 
     const detected = await detectWebProject(root);
-    // @components/ を採用すると import が @components/components/ui/button になる。
+    // @components/ と @lib/ は同じ深さで、どちらを採っても筋が通らない。
     expect(detected.config.importAlias).toBe(FALLBACK_IMPORT_ALIAS);
     const notes = notesText(detected.notes);
-    expect(notes).toContain("1:1 対応するエントリが無い");
+    expect(notes).toContain("1 つに決められない");
     expect(notes).toContain("仮置き");
     expect(notes).not.toContain("paths から検出した");
   });
@@ -267,5 +267,67 @@ describe("aliasBase の検出", () => {
     // import が "@/src/lib/cn" になって解決できない。
     expect(detected.config.aliasBase).toBe("src");
     expect(notesText(detected.notes)).toContain("仮置き");
+  });
+});
+
+describe("src / ルート以外を指すエイリアス", () => {
+  test("./app/* を検出し、出力先も app/ 配下に合わせる", async () => {
+    const root = await tempDir();
+    await write(root, "tsconfig.json", '{ "compilerOptions": { "paths": { "@/*": ["./app/*"] } } }');
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.importAlias).toBe("@/");
+    expect(detected.config.aliasBase).toBe("app");
+    // 出力先を aliasBase に合わせないと "@/components" が app/components を指すのに
+    // 実際の出力は ./components になり、import が解決できない。
+    expect(detected.config.paths.componentsDir).toBe("app/components");
+    expect(detected.config.paths.libDir).toBe("app/lib");
+    expect(notesText(detected.notes)).toContain("app 配下にした");
+  });
+
+  test("複数階層の対応先も扱える", async () => {
+    const root = await tempDir();
+    await write(root, "tsconfig.json", '{ "compilerOptions": { "paths": { "~/*": ["./src/app/*"] } } }');
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.aliasBase).toBe("src/app");
+    expect(detected.config.paths.libDir).toBe("src/app/lib");
+  });
+
+  test("区切りが \\ の対応先も解釈する", async () => {
+    const root = await tempDir();
+    await write(root, "tsconfig.json", '{ "compilerOptions": { "paths": { "@/*": [".\\\\app\\\\*"] } } }');
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.aliasBase).toBe("app");
+    expect(detected.config.paths.libDir).toBe("app/lib");
+  });
+
+  test("対応先が 1 つに定まらない形は採用しない", async () => {
+    const root = await tempDir();
+    await write(
+      root,
+      "tsconfig.json",
+      // 途中に * があると対応先が 1 つに決まらない。".." は aliasBase の外に出る。
+      '{ "compilerOptions": { "paths": { "@/*": ["./packages/*/src/*"], "#/*": ["../shared/*"] } } }',
+    );
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.importAlias).toBe(FALLBACK_IMPORT_ALIAS);
+    expect(notesText(detected.notes)).toContain("仮置き");
+  });
+
+  test("src/ がある構成では ./src/* 側を優先する", async () => {
+    const root = await tempDir();
+    await mkdir(join(root, "src"));
+    await write(
+      root,
+      "tsconfig.json",
+      '{ "compilerOptions": { "paths": { "@app/*": ["./app/*"], "@/*": ["./src/*"] } } }',
+    );
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.importAlias).toBe("@/");
+    expect(detected.config.aliasBase).toBe("src");
   });
 });
