@@ -34,11 +34,18 @@ export const DIRECTORY_KINDS = Object.fromEntries(
  * 任意の式評価を排除し出力を決定的に保つ。
  */
 export const TEMPLATE_VARIABLES = [
+  // 出力先のパス。プロジェクトルートからの相対で、files[].to に使う。
   "componentsDir",
   "hooksDir",
   "libDir",
   "stylesDir",
-  "importAlias",
+  // import に書くパス。importAlias と aliasBase から導出する。
+  // 出力先のパスを importAlias に直接繋いではいけない。エイリアスが src/ を
+  // 指している構成 (最も一般的) で "@/src/lib/cn" のような二重パスになる。
+  "componentsImport",
+  "hooksImport",
+  "libImport",
+  "stylesImport",
 ] as const;
 
 export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
@@ -82,6 +89,18 @@ const relativePath = z
     const last = pathSegments(value).at(-1);
     return last !== undefined && last !== "" && last !== ".";
   }, "ファイルへのパスを指定する (ディレクトリは指定できない)");
+
+/**
+ * ディレクトリを指す相対パス。relativePath と違い "." (プロジェクトルート自身) を許す。
+ * ファイルではなくディレクトリを指すので、末尾がファイル名である必要はない。
+ */
+const aliasBasePath = z
+  .string()
+  .min(1)
+  .refine((value) => !/^[\\/]/.test(value), "絶対パスは指定できない")
+  .refine((value) => !/^[A-Za-z]:[\\/]/.test(value), "ドライブレターから始まるパスは指定できない")
+  .refine((value) => !value.startsWith("~"), "ホームディレクトリ起点のパスは指定できない")
+  .refine((value) => !pathSegments(value).includes(".."), "'..' を含むパスは指定できない");
 
 export const stackSchema = z.object({
   framework: z.string().min(1),
@@ -147,6 +166,15 @@ export const projectConfigSchema = z.object({
   }),
   /** import のパスエイリアス。末尾の区切りまで含める (例: "@/")。 */
   importAlias: z.string().min(1),
+  /**
+   * importAlias が指すディレクトリ。プロジェクトルートからの相対で、
+   * ルート自身を指すなら "."。
+   *
+   * これが無いと import のパスを組めない。paths.* はプロジェクトルート相対の
+   * 出力先なので、`@/` + `src/lib` のように単純に繋ぐと、エイリアスが src/ を
+   * 指している構成で "@/src/lib" という解決できないパスになる。
+   */
+  aliasBase: aliasBasePath,
 });
 
 export type ProjectConfig = z.output<typeof projectConfigSchema>;

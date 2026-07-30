@@ -83,6 +83,8 @@ describe("detectWebProject", () => {
 
     const detected = await detectWebProject(root);
     expect(detected.config.importAlias).toBe("~/");
+    // エイリアスの指す先も一緒に取る。これが無いと import のパスを組めない。
+    expect(detected.config.aliasBase).toBe("src");
     expect(notesText(detected.notes)).toContain("検出した");
   });
 
@@ -240,5 +242,30 @@ describe("detectImportAlias", () => {
     );
 
     expect((await detectImportAlias(root, "src")).alias).toBe("@/");
+  });
+});
+
+describe("aliasBase の検出", () => {
+  test("エイリアスがルートを指す構成では aliasBase も '.'", async () => {
+    const root = await tempDir();
+    await write(root, "tsconfig.json", '{ "compilerOptions": { "paths": { "@/*": ["./*"] } } }');
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.importAlias).toBe("@/");
+    expect(detected.config.aliasBase).toBe(".");
+    // src/ が無いので出力先もルート直下になり、import は "@/lib" で解決する。
+    expect(detected.config.paths.libDir).toBe("lib");
+  });
+
+  test("検出できない場合は出力先の基準に合わせて仮置きし、その旨を残す", async () => {
+    const root = await tempDir();
+    await mkdir(join(root, "src"));
+
+    const detected = await detectWebProject(root);
+    expect(detected.config.importAlias).toBe(FALLBACK_IMPORT_ALIAS);
+    // src/ 構成なら "@/" は src/ を指すのが慣例。ここを "." にすると
+    // import が "@/src/lib/cn" になって解決できない。
+    expect(detected.config.aliasBase).toBe("src");
+    expect(notesText(detected.notes)).toContain("仮置き");
   });
 });

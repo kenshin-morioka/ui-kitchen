@@ -149,9 +149,13 @@ ai:                            # AI 向けの決定的なガイド。uikit conte
 
 `files[].to` と `files/` 配下の内容では、プロジェクト設定（§6 `ui-kitchen.json`）由来の変数のみを展開する。変数は固定の有限集合とし、任意の式は評価しない（決定性と安全性のため）。
 
-- `{{componentsDir}}` / `{{hooksDir}}` / `{{libDir}}` … 出力先
-- `{{importAlias}}` … `@/` などのパスエイリアス
-- `{{variant.<name>}}` … variant の有効/無効
+変数参照は `{{@name}}` と書く（`@` を必須にしているのは JSX の `style={{ … }}` と衝突させないため）。
+
+- `{{@componentsDir}}` / `{{@hooksDir}}` / `{{@libDir}}` / `{{@stylesDir}}` … 出力先。プロジェクトルート相対で、`files[].to` に使う
+- `{{@componentsImport}}` / `{{@hooksImport}}` / `{{@libImport}}` / `{{@stylesImport}}` … import に書くパス
+- `{{#if variant.<name>}}` … variant による行単位の取捨
+
+出力先と import 用を分けているのは、この 2 つが同じ値にならないため。`importAlias`（`@/`）が指すディレクトリは `aliasBase`（多くの場合 `src`）で、出力先は `src/lib` のようにプロジェクトルート相対で持つ。単純に繋ぐと `@/src/lib` という解決できないパスになるので、import 用は `aliasBase` からの相対に直した値を別変数として渡す。
 
 ### インデックス
 

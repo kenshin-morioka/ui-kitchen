@@ -14,7 +14,9 @@
 
 `catalog/` はこのリポジトリ直下にあるので、`UI_KITCHEN_CATALOG` の指定なしで `pnpm uikit add <id> --cwd <対象>` が通る。
 
-primitive は `web/lib/cn` を requires する（`cn` の出力先は `lib/cn.ts`。shadcn の `lib/utils.ts` とは別ファイルなので、import は `{{@importAlias}}{{@libDir}}/cn` と書く）。
+primitive は `web/lib/cn` を requires する（`cn` の出力先は `lib/cn.ts`。shadcn の `lib/utils.ts` とは別ファイルなので、import は `{{@libImport}}/cn` と書く）。
+
+**`button` は実装済みで手元に控えがある。** shadcn 現行の `button.tsx`（cva + `radix-ui` の `Slot`、variant 6 種 / size 8 種）をそのまま写し、`cn` の import だけ差し替えた形。`recipe.yaml` / `files/button.tsx` / `README.md` は書き上がっていて、依存は `class-variance-authority` ^0.7.0 と `radix-ui` ^1.6.0。variant は持たせていない（`loading` を入れると `<Comp … />` を children で包む形に変える必要があり、行単位の条件ブロックでは表現できない）。次のイテレーションでこれを PR にする。
 
 ## 2. 残っている CI の指摘
 
@@ -44,3 +46,5 @@ primitive は `web/lib/cn` を requires する（`cn` の出力先は `lib/cn.ts
 - shadcn 現行版は `--destructive-foreground` を**持たない**。destructive な面の文字色は `text-white` を直書きする。カタログもこれに揃えてある
 - `tailwind-merge` v3 は追加設定なしで `rounded-xs` / `rounded-4xl` や `bg-chart-1` / `bg-sidebar` を競合として畳める（実測確認済み）。`extendTailwindMerge` は不要
 - shadcn の docs サイト（`apps/v4/app/globals.css`）はトークンが独自拡張されていて `shadcn init` の出力とは別物。正本として参照するなら docs の theming ページ側を見る
+- **Biome の `organizeImports` は `catalog/` では無効にしている**（`biome.json` の `overrides`）。テンプレート変数から始まる import 文字列（`"{{@libImport}}/cn"`）は `{` が先頭なので外部パッケージより前に並べ替えられ、展開後の順序が壊れる。recipe の import 順は「展開後に正しい順序」を人が担保する
+- recipe を実プロジェクトで検証するときは `tsc` まで通す。ファイルが生成されるだけでは import が解決できているか分からない（`@/src/lib/cn` の二重パスはこれで見つかった）

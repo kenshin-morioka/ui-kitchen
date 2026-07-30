@@ -167,13 +167,56 @@ export async function applyPlan(plan: Plan, options: ApplyOptions = {}): Promise
 }
 
 export function templateVarsFor(config: ProjectConfig): TemplateVars {
-  return {
+  const dirs = {
     componentsDir: stripTrailingSlash(config.paths.componentsDir),
     hooksDir: stripTrailingSlash(config.paths.hooksDir),
     libDir: stripTrailingSlash(config.paths.libDir),
     stylesDir: stripTrailingSlash(config.paths.stylesDir),
-    importAlias: config.importAlias,
   };
+
+  return {
+    ...dirs,
+    componentsImport: importPathFor(config, dirs.componentsDir, "componentsDir"),
+    hooksImport: importPathFor(config, dirs.hooksDir, "hooksDir"),
+    libImport: importPathFor(config, dirs.libDir, "libDir"),
+    stylesImport: importPathFor(config, dirs.stylesDir, "stylesDir"),
+  };
+}
+
+/**
+ * 出力先を import に書けるパスへ変換する。
+ *
+ * importAlias が指すディレクトリ (aliasBase) から見た相対パスに直してから繋ぐ。
+ * 直接繋ぐと `@/` + `src/lib` = "@/src/lib" のように、エイリアスが src/ を
+ * 指している構成 (最も一般的) で解決できないパスになる。
+ */
+function importPathFor(config: ProjectConfig, dir: string, field: string): string {
+  const base = segmentsOf(config.aliasBase);
+  const target = segmentsOf(dir);
+
+  if (!startsWithSegments(target, base)) {
+    throw new ConfigError(
+      `paths.${field} (${dir}) が importAlias の指す ${config.aliasBase} の外にある。` +
+        `import のパスを組めないので、出力先を ${config.aliasBase} 配下にするか aliasBase を直す。`,
+    );
+  }
+
+  // 区切りは常に "/"。import のパスに OS のセパレータは使えない。
+  const rest = target.slice(base.length).join("/");
+  const prefix = stripTrailingSlash(config.importAlias.replace(/\\/g, "/"));
+  return rest === "" ? prefix : `${prefix}/${rest}`;
+}
+
+/** "." と空のセグメントを落として比較可能にする。区切りは / と \ の両方を受ける。 */
+function segmentsOf(value: string): string[] {
+  return value.split(/[\\/]/).filter((segment) => segment !== "" && segment !== ".");
+}
+
+function startsWithSegments(target: string[], base: string[]): boolean {
+  if (base.length > target.length) return false;
+  // 大文字小文字だけが違う指定も同じディレクトリを指しうるが、ここで畳むと
+  // import のパスが実際のディレクトリ名と食い違う。厳密一致にする。
+  return base.every((segment, index) => target[index] === segment);
 }
 
 export function assertStackCompatible(recipe: Recipe, config: ProjectConfig): void {

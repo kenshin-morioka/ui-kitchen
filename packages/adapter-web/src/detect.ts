@@ -53,6 +53,15 @@ export async function detectWebProject(projectRoot: string): Promise<DetectedPro
       `importAlias=${FALLBACK_IMPORT_ALIAS} は検出できず仮置きした。違っていると生成されるファイルの import が解決できないので ui-kitchen.json を直す`,
     );
   }
+  // エイリアスが指すディレクトリ。検出できなかった場合は出力先の基準に合わせる
+  // (src/ 構成なら "@/" は src/ を指すのが慣例)。ここを取り違えると import が
+  // "@/src/lib/cn" のように二重になって解決できない。
+  const aliasBase = detected.base ?? base;
+  notes.push(
+    detected.base !== undefined
+      ? `importAlias が指すディレクトリは ${aliasBase}`
+      : `importAlias が指すディレクトリを ${aliasBase} と仮置きした。import が解決できない場合はここを疑う`,
+  );
 
   return {
     config: {
@@ -65,6 +74,7 @@ export async function detectWebProject(projectRoot: string): Promise<DetectedPro
         stylesDir: joinRelative(base, "styles"),
       },
       importAlias: detected.alias ?? FALLBACK_IMPORT_ALIAS,
+      aliasBase,
     },
     notes,
   };

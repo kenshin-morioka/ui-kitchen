@@ -5,6 +5,11 @@ import { parseJsonc } from "./jsonc.ts";
 export interface ImportAliasDetection {
   /** 検出できたエイリアス (例: "@/")。検出できなければ undefined。 */
   alias?: string;
+  /**
+   * エイリアスが指すディレクトリ (プロジェクトルート相対、ルート自身なら ".")。
+   * import のパスはここからの相対で組む必要があるので、alias だけでは足りない。
+   */
+  base?: string;
   /** 検出元 / 検出できなかった理由。呼び出し側が notes に流す。 */
   notes: string[];
 }
@@ -68,7 +73,7 @@ export async function detectImportAlias(
           notes.push(
             `importAlias=${picked.alias} を ${label(projectRoot, current.path)} の paths から検出した ("${picked.key}" -> "${picked.target}")`,
           );
-          return { alias: picked.alias, notes };
+          return { alias: picked.alias, base: picked.base === "" ? "." : picked.base, notes };
         }
         notes.push(
           `${label(projectRoot, current.path)} の paths にプロジェクトルートへ 1:1 対応するエントリが無い (${Object.keys(paths).join(", ")})`,
@@ -91,6 +96,8 @@ interface PickedAlias {
   alias: string;
   key: string;
   target: string;
+  /** 対応先の基準ディレクトリ ("" ならプロジェクトルート)。 */
+  base: string;
 }
 
 /**
@@ -112,7 +119,7 @@ function pickRootAlias(paths: Record<string, unknown>, preferredBase: string): P
 
     const base = rootBaseOf(target);
     if (base === undefined) continue;
-    const picked: PickedAlias = { alias: key.slice(0, -1), key, target };
+    const picked: PickedAlias = { alias: key.slice(0, -1), key, target, base };
     // 出力先の基準と一致するものを最優先する (src/ 構成なら ./src/* 側)。
     if (base === normalizeBase(preferredBase)) return picked;
     candidates.push(picked);

@@ -59,7 +59,10 @@ catalog/web/primitives/button/
 ```
 
 - **テンプレート変数は `{{@componentsDir}}` の形式。`@` を必ず付ける。** `@` 無しだと JSX の `style={{ color: "red" }}` や `animate={{opacity}}` を変数参照と誤認して展開が壊れる
-- 使える変数は `componentsDir` / `hooksDir` / `libDir` / `stylesDir` / `importAlias` のみ。増やすときは `TEMPLATE_VARIABLES` に追加する
+- 使える変数は 2 系統。増やすときは `TEMPLATE_VARIABLES` に追加する
+  - **出力先** (`files[].to` に使う): `componentsDir` / `hooksDir` / `libDir` / `stylesDir`。プロジェクトルート相対
+  - **import に書くパス**: `componentsImport` / `hooksImport` / `libImport` / `stylesImport`。`importAlias` と `aliasBase` から導出済み
+- **import には必ず `*Import` を使う。** `{{@importAlias}}{{@libDir}}` のように出力先を繋ぐと、エイリアスが `src/` を指す構成（最も一般的）で `@/src/lib/cn` という解決できないパスになる
 - variant の条件ブロックは**独立した行**に書く。ネスト不可
 
 ```tsx

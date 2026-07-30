@@ -7,12 +7,16 @@ const vars = {
   hooksDir: "src/hooks",
   libDir: "src/lib",
   stylesDir: "src/styles",
-  importAlias: "@/",
+  // import 系は aliasBase ("src") からの相対で組まれた結果を入れる。
+  componentsImport: "@/components",
+  hooksImport: "@/hooks",
+  libImport: "@/lib",
+  stylesImport: "@/styles",
 };
 
 describe("変数の置換", () => {
   test("{{@name}} を置換する", () => {
-    expect(expandTemplate('import { cn } from "{{@importAlias}}lib/cn";', { vars })).toBe(
+    expect(expandTemplate('import { cn } from "{{@libImport}}/cn";', { vars })).toBe(
       'import { cn } from "@/lib/cn";',
     );
   });
@@ -27,10 +31,8 @@ describe("変数の置換", () => {
   });
 
   test("置換した値の中身は再スキャンしない", () => {
-    // importAlias が "{{@libDir}}" のような値でも二重置換されないこと。
-    expect(substituteVariables("{{@importAlias}}", { ...vars, importAlias: "{{@libDir}}" })).toBe(
-      "{{@libDir}}",
-    );
+    // 設定値が "{{@libDir}}" のような文字列でも二重置換されないこと。
+    expect(substituteVariables("{{@libImport}}", { ...vars, libImport: "{{@libDir}}" })).toBe("{{@libDir}}");
   });
 });
 
