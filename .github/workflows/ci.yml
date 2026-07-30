@@ -21,11 +21,16 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       typescript: ${{ steps.detect.outputs.typescript }}
+      catalog: ${{ steps.detect.outputs.catalog }}
       workflows: ${{ steps.detect.outputs.workflows }}
     steps:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # 既定では checkout が token を .git/config に残す。後続の
+          # pnpm install が依存側のライフサイクルスクリプトを実行するので、
+          # そこから読める状態にしない。CI から push はしないので不要。
+          persist-credentials: false
       - id: detect
         env:
           IS_PR: ${{ github.event_name == 'pull_request' }}
@@ -36,6 +41,7 @@ jobs:
           if [ "$IS_PR" != "true" ]; then
             {
               echo "typescript=true"
+              echo "catalog=true"
               echo "workflows=true"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -49,15 +55,23 @@ jobs:
           # pipefail によって「マッチしたのに false」になる (大きい PR で必ず踏む)。
           matches() { grep -qE "$1" <<<"$changed"; }
           typescript=false
+          catalog=false
           workflows=false
           if matches '^(packages/|package\.json|pnpm-lock\.yaml|pnpm-workspace\.yaml|tsconfig\.json|biome\.json|mise\.toml|\.github/workflows/)'; then
             typescript=true
+          fi
+          # recipe のスキーマ検証とインデックスの鮮度は core / registry の変更でも
+          # 結果が変わる。catalog/ の変更だけを見ると、スキーマを厳しくした PR で
+          # 既存 recipe が落ちるのを見逃す。
+          if matches '^(catalog/|packages/(core|registry)/|package\.json|pnpm-lock\.yaml|biome\.json|mise\.toml|\.github/workflows/)'; then
+            catalog=true
           fi
           if matches '^\.github/workflows/'; then
             workflows=true
           fi
           {
             echo "typescript=$typescript"
+            echo "catalog=$catalog"
             echo "workflows=$workflows"
           } >> "$GITHUB_OUTPUT"
 
@@ -68,6 +82,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@v3
       - run: pnpm install --frozen-lockfile
       - name: lint / format (biome)
@@ -77,6 +93,24 @@ jobs:
       - name: unit test
         run: pnpm test
 
+  # カタログ: recipe.yaml のスキーマ検証 + catalog.json の鮮度 + recipe のソース整形。
+  # 生成されるコードは消費側のプロジェクトで型検査されるので、ここでは型は見ない
+  # (消費側の依存がこのリポジトリの root に無い)。
+  catalog:
+    needs: changes
+    if: needs.changes.outputs.catalog == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@v3
+      - run: pnpm install --frozen-lockfile
+      - name: recipe の検証 / インデックスの鮮度
+        run: pnpm catalog:validate
+      - name: lint / format (biome, catalog)
+        run: pnpm lint:catalog
+
   # workflow 自体の構文検査。actionlint は mise で固定バージョンを入れる
   # (curl | bash はスクリプトもバイナリも可変で、CI に任意コード実行の面が出る)。
   workflows:
@@ -85,13 +119,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
       - uses: jdx/mise-action@v3
       - run: actionlint -color
 
   # 必須チェックはこのジョブだけにする。パス判定でスキップされたジョブを
   # 必須指定すると PR が永久に待たされるため、集約側で成否を判断する。
   ci:
-    needs: [changes, typescript, workflows]
+    needs: [changes, typescript, catalog, workflows]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -105,10 +141,11 @@ jobs:
       - name: 判定結果が空でないことを確認する
         env:
           TYPESCRIPT: ${{ needs.changes.outputs.typescript }}
+          CATALOG: ${{ needs.changes.outputs.catalog }}
           WORKFLOWS: ${{ needs.changes.outputs.workflows }}
         run: |
           set -euo pipefail
-          for value in "$TYPESCRIPT" "$WORKFLOWS"; do
+          for value in "$TYPESCRIPT" "$CATALOG" "$WORKFLOWS"; do
             case "$value" in
               true | false) ;;
               *)

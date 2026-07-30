@@ -23,7 +23,7 @@ The same recipe always produces byte-identical output. No model is involved in g
 
 ## Status
 
-Under construction. The engine and the CLI (`init` / `list` / `show` / `add`) are in place; the catalog is landing one recipe at a time, so there is nothing to add yet. Inside this repository the CLI runs as `pnpm uikit <command>` — it is not published as a package.
+Under construction. The engine, the CLI (`init` / `list` / `show` / `add`) and the foundation of the catalog (`web/tokens/base`, `web/lib/cn`) are in place; primitives are landing one recipe at a time. Inside this repository the CLI runs as `pnpm uikit <command>` — it is not published as a package.
 
 ## Requirements
 

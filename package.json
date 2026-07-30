@@ -10,6 +10,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "biome ci --error-on-warnings packages",
+    "lint:catalog": "biome ci --error-on-warnings catalog",
     "fix": "biome check --write .",
     "uikit": "bun packages/cli/src/main.ts",
     "catalog:build": "bun packages/registry/src/build.ts",
