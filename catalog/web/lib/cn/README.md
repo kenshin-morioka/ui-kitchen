@@ -6,8 +6,12 @@
 uikit add web/lib/cn
 ```
 
-生成先は `<libDir>/cn.ts`。`web/tokens/base` を requires しているので、
+生成先は `ui-kitchen.json` の `paths.libDir` 配下の `cn.ts`、import のパスは
+`importAlias` + `libDir` で決まる。`web/tokens/base` を requires しているので、
 依存も併せて生成される。
+
+以下は既定設定 (`importAlias: "@/"`、`libDir: "src/lib"`) の場合。設定を変えている
+場合は `uikit add web/lib/cn --dry-run` が出す実際の生成先に合わせる。
 
 ```tsx
 import { cn } from "@/lib/cn";

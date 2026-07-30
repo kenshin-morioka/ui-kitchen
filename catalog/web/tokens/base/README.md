@@ -6,7 +6,11 @@
 uikit add web/tokens/base
 ```
 
-生成先は `<stylesDir>/tokens.css`。アプリのエントリから読み込む。
+生成先は `ui-kitchen.json` の `paths.stylesDir` 配下の `tokens.css`。アプリの
+エントリから読み込む。
+
+以下は既定設定 (`importAlias: "@/"`、`stylesDir: "src/styles"`) の場合。設定を
+変えている場合は `uikit add web/tokens/base --dry-run` が出す実際の生成先に合わせる。
 
 ```ts
 import "@/styles/tokens.css";

@@ -27,7 +27,8 @@ ai:
     - "dark: を機能させるために .dark クラスをルート要素に付ける必要がある。prefers-color-scheme では切り替わらない"
     - ":root の値を書き換えてテーマを変える場合も変数名は変えない。名前を変えると外から持ち込む shadcn のコードが壊れる"
   integration: |
-    アプリのエントリから読み込む (例: main.tsx で import "@/styles/tokens.css")。
+    アプリのエントリから読み込む。パスは importAlias + stylesDir で決まる
+    (既定設定なら main.tsx で import "@/styles/tokens.css")。
     このファイルが @import "tailwindcss" を持つので、他に Tailwind を読み込む
     エントリを作らない。二重に読み込むと同じユーティリティが 2 回出力される。
 
