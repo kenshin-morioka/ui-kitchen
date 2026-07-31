@@ -4,8 +4,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from "node
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { Catalog, LoadedRecipe } from "../src/catalog.ts";
-import { ApplyBlockedError, FileSystemError, UiKitchenError } from "../src/errors.ts";
-import { applyPlan, buildPlan } from "../src/plan.ts";
+import { ApplyBlockedError, ConfigError, FileSystemError, UiKitchenError } from "../src/errors.ts";
+import { applyPlan, buildPlan, templateVarsFor } from "../src/plan.ts";
 import type { ProjectConfig } from "../src/schema.ts";
 
 /** CI ランナーでも動くよう OS の一時ディレクトリを使う。 */
@@ -21,6 +21,7 @@ const config: ProjectConfig = {
     stylesDir: "src/styles",
   },
   importAlias: "@/",
+  aliasBase: "src",
 };
 
 interface RecipeInput {
@@ -331,5 +332,57 @@ describe("requiredDependencies の集約", () => {
   test("range が同じなら 1 件に集約する", async () => {
     const built = await plan(await catalogWith("^19.0.0", "^19.0.0"), ["web/blocks/form"]);
     expect(built.requiredDependencies).toEqual({ react: "^19.0.0", zod: "^4.0.0" });
+  });
+});
+
+describe("import 用テンプレート変数", () => {
+  test("aliasBase 配下の出力先をエイリアス相対に直す", () => {
+    // "@/" + "src/lib" と単純に繋ぐと "@/src/lib" になり解決できない。
+    expect(templateVarsFor(config).libImport).toBe("@/lib");
+    expect(templateVarsFor(config).componentsImport).toBe("@/components");
+    expect(templateVarsFor(config).stylesImport).toBe("@/styles");
+  });
+
+  test("エイリアスがプロジェクトルートを指す構成", () => {
+    const vars = templateVarsFor({
+      ...config,
+      aliasBase: ".",
+      paths: { ...config.paths, libDir: "lib" },
+    });
+    expect(vars.libImport).toBe("@/lib");
+  });
+
+  test("出力先が aliasBase 自身のときは余分な区切りを付けない", () => {
+    const vars = templateVarsFor({ ...config, aliasBase: "src", paths: { ...config.paths, libDir: "src" } });
+    // "{{@libImport}}/cn" が "@/cn" になること ("@//cn" にしない)。
+    expect(vars.libImport).toBe("@");
+  });
+
+  test("エイリアスの末尾が / でなくても区切りは 1 つ", () => {
+    expect(templateVarsFor({ ...config, importAlias: "~" }).libImport).toBe("~/lib");
+    expect(templateVarsFor({ ...config, importAlias: "@app/" }).libImport).toBe("@app/lib");
+  });
+
+  test("区切りが \\ の設定でも import は / で組む", () => {
+    const vars = templateVarsFor({
+      ...config,
+      aliasBase: "src",
+      paths: { ...config.paths, libDir: "src\\lib\\util" },
+    });
+    expect(vars.libImport).toBe("@/lib/util");
+  });
+
+  test("aliasBase の外を指す出力先はエラーにする", () => {
+    // 黙って "@/../packages/ui" のような壊れた import を生むより早く落とす。
+    expect(() =>
+      templateVarsFor({ ...config, aliasBase: "src", paths: { ...config.paths, libDir: "packages/ui" } }),
+    ).toThrow(ConfigError);
+  });
+
+  test("前方一致でも別ディレクトリなら弾く", () => {
+    // "src" と "srclib" は文字列としては前方一致するが別のディレクトリ。
+    expect(() =>
+      templateVarsFor({ ...config, aliasBase: "src", paths: { ...config.paths, libDir: "srclib" } }),
+    ).toThrow(ConfigError);
   });
 });

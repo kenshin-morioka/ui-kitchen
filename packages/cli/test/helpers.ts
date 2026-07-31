@@ -100,6 +100,7 @@ export const PROJECT_CONFIG = {
     stylesDir: "src/styles",
   },
   importAlias: "@/",
+  aliasBase: "src",
 } as const;
 
 /** 対象プロジェクト (ui-kitchen.json + package.json) を作る。 */

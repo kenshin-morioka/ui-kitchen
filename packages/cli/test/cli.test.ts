@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { lstat, mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { cleanupTempDirs, tempDir, write, writeProject, writeRecipe } from "./helpers.ts";
+import { cleanupTempDirs, PROJECT_CONFIG, tempDir, write, writeProject, writeRecipe } from "./helpers.ts";
 
 afterEach(cleanupTempDirs);
 
@@ -323,3 +323,63 @@ async function exists(path: string): Promise<boolean> {
     return false;
   }
 }
+
+describe("生成コードの import パス", () => {
+  test("エイリアスが src/ を指す構成で二重パスにならない", async () => {
+    const catalog = await tempDir("catalog");
+    // recipe 側は「エイリアス相対の import 用変数」を使う。
+    await writeRecipe(catalog, "button", {
+      content: 'import { cn } from "{{@libImport}}/cn";\nexport const Button = cn;\n',
+    });
+    const project = await tempDir("project");
+    await writeProject(project);
+
+    const result = await uikit(["add", "web/primitives/button"], { catalog, cwd: project });
+    expect(result.exitCode).toBe(0);
+
+    const generated = await readFile(join(project, "src/components/ui/button.tsx"), "utf8");
+    // paths が "@/*" -> "./src/*" なので、正しい import は "@/lib/cn"。
+    // 出力先 (src/lib) をそのまま繋ぐと "@/src/lib/cn" になり解決できない。
+    expect(generated).toContain('from "@/lib/cn"');
+    expect(generated).not.toContain("@/src/");
+  });
+
+  test("エイリアスがプロジェクトルートを指す構成", async () => {
+    const catalog = await tempDir("catalog");
+    await writeRecipe(catalog, "button", {
+      content: 'import { cn } from "{{@libImport}}/cn";\nexport const Button = cn;\n',
+      to: "{{@componentsDir}}/button.tsx",
+    });
+    const project = await tempDir("project");
+    await writeProject(project, {
+      config: {
+        ...PROJECT_CONFIG,
+        aliasBase: ".",
+        paths: { componentsDir: "components", hooksDir: "hooks", libDir: "lib", stylesDir: "styles" },
+      },
+    });
+
+    const result = await uikit(["add", "web/primitives/button"], { catalog, cwd: project });
+    expect(result.exitCode).toBe(0);
+    expect(await readFile(join(project, "components/button.tsx"), "utf8")).toContain('from "@/lib/cn"');
+  });
+
+  test("出力先がエイリアスの外にある設定はスタックトレースなしで落ちる", async () => {
+    const catalog = await tempDir("catalog");
+    await writeRecipe(catalog, "button", {
+      content: 'import { cn } from "{{@libImport}}/cn";\n',
+    });
+    const project = await tempDir("project");
+    await writeProject(project, {
+      config: {
+        ...PROJECT_CONFIG,
+        aliasBase: "src",
+        paths: { ...PROJECT_CONFIG.paths, libDir: "vendor/lib" },
+      },
+    });
+
+    const result = await uikit(["add", "web/primitives/button"], { catalog, cwd: project });
+    expectError(result, "CONFIG_INVALID");
+    expect(result.stderr).toContain("aliasBase");
+  });
+});

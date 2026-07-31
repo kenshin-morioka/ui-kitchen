@@ -5,6 +5,11 @@ import { parseJsonc } from "./jsonc.ts";
 export interface ImportAliasDetection {
   /** 検出できたエイリアス (例: "@/")。検出できなければ undefined。 */
   alias?: string;
+  /**
+   * エイリアスが指すディレクトリ (プロジェクトルート相対、ルート自身なら ".")。
+   * import のパスはここからの相対で組む必要があるので、alias だけでは足りない。
+   */
+  base?: string;
   /** 検出元 / 検出できなかった理由。呼び出し側が notes に流す。 */
   notes: string[];
 }
@@ -68,10 +73,10 @@ export async function detectImportAlias(
           notes.push(
             `importAlias=${picked.alias} を ${label(projectRoot, current.path)} の paths から検出した ("${picked.key}" -> "${picked.target}")`,
           );
-          return { alias: picked.alias, notes };
+          return { alias: picked.alias, base: picked.base === "" ? "." : picked.base, notes };
         }
         notes.push(
-          `${label(projectRoot, current.path)} の paths にプロジェクトルートへ 1:1 対応するエントリが無い (${Object.keys(paths).join(", ")})`,
+          `${label(projectRoot, current.path)} の paths から採用するエントリを 1 つに決められない (${Object.keys(paths).join(", ")})`,
         );
       }
 
@@ -91,14 +96,24 @@ interface PickedAlias {
   alias: string;
   key: string;
   target: string;
+  /** 対応先の基準ディレクトリ ("" ならプロジェクトルート)。 */
+  base: string;
 }
 
 /**
- * paths のうち「プロジェクトルートへ 1:1 で対応する」エントリを選ぶ。
+ * paths のうち「ディレクトリ 1 つへ 1:1 で対応する」エントリを選ぶ。
  *
- * `@components/* -> ./src/components/*` のような部分エイリアスを採用すると、
- * 生成される import が `@components/components/ui/button` になって解決できない。
- * 対応先がルート (`./*`) か src ルート (`./src/*`) のものだけを候補にする。
+ * 対応先はルートや src に限らない (`"@/*": ["./app/*"]` は実在する構成)。
+ * 対応先を aliasBase として持てば import は組めるので、ここでは対応先の
+ * ディレクトリを返し、出力先をそこに合わせるのは呼び出し側の責務にする。
+ *
+ * 候補が複数あるときは:
+ *   1. 出力先の基準と一致するものを採る (src/ 構成なら ./src/* 側)
+ *   2. 無ければルートに最も近いものを採る
+ *   3. 最も近いものが複数あれば選ばない (記述順で決めると環境差で結果が変わる)
+ *
+ * 3 で選ばないのは、`@components/*` と `@lib/*` のように同じ深さの部分エイリアスが
+ * 並んでいる場合。どちらを採っても筋が通らないので、仮置きした旨を伝えて人に委ねる。
  */
 function pickRootAlias(paths: Record<string, unknown>, preferredBase: string): PickedAlias | undefined {
   const candidates: PickedAlias[] = [];
@@ -110,22 +125,49 @@ function pickRootAlias(paths: Record<string, unknown>, preferredBase: string): P
     const target = value[0];
     if (typeof target !== "string") continue;
 
-    const base = rootBaseOf(target);
+    const base = relativeBaseOf(target);
     if (base === undefined) continue;
-    const picked: PickedAlias = { alias: key.slice(0, -1), key, target };
-    // 出力先の基準と一致するものを最優先する (src/ 構成なら ./src/* 側)。
+    const picked: PickedAlias = { alias: key.slice(0, -1), key, target, base };
     if (base === normalizeBase(preferredBase)) return picked;
     candidates.push(picked);
   }
 
-  return candidates[0];
+  if (candidates.length === 0) return undefined;
+
+  const shallowest = Math.min(...candidates.map((candidate) => depthOf(candidate.base)));
+  const closest = candidates.filter((candidate) => depthOf(candidate.base) === shallowest);
+  return closest.length === 1 ? closest[0] : undefined;
 }
 
-/** 対応先がルート相当なら、その基準 ("" もしくは "src") を返す。それ以外は undefined。 */
-function rootBaseOf(target: string): string | undefined {
-  if (!target.endsWith("/*") && target !== "*" && target !== "./*") return undefined;
-  const normalized = target.replace(/^\.\//, "").replace(/\/\*$/, "").replace(/^\*$/, "");
-  return normalized === "" || normalized === "src" ? normalized : undefined;
+/**
+ * `./app/*` のような対応先を、プロジェクトルート相対のディレクトリに直す。
+ * ルート自身なら空文字。解釈できない形は undefined。
+ *
+ * 区切りは `/` と `\` の両方を受ける。tsconfig の paths は `/` で書く決まりだが、
+ * Windows で手書きされたものが混ざる。
+ */
+function relativeBaseOf(target: string): string | undefined {
+  if (target === "*" || target === "./*") return "";
+  if (!/[\\/]\*$/.test(target)) return undefined;
+
+  const body = target.slice(0, -2);
+  // 絶対パスとドライブレターは「プロジェクトルート相対」ではないので扱わない。
+  if (/^[\\/]/.test(body) || /^[A-Za-z]:[\\/]/.test(body)) return undefined;
+
+  const segments: string[] = [];
+  for (const segment of body.split(/[\\/]/)) {
+    if (segment === "" || segment === ".") continue;
+    // `..` は aliasBase の外に出るので import を組めない。
+    // 途中の `*` (`./packages/*/src/*` 等) は対応先が 1 つに定まらない。
+    if (segment === ".." || segment.includes("*")) return undefined;
+    segments.push(segment);
+  }
+
+  return segments.join("/");
+}
+
+function depthOf(base: string): number {
+  return base === "" ? 0 : base.split("/").length;
 }
 
 function normalizeBase(base: string): string {

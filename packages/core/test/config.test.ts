@@ -37,6 +37,7 @@ function configOf(componentsDir: string): ProjectConfig {
       stylesDir: "src/styles",
     },
     importAlias: "@/",
+    aliasBase: "src",
   };
 }
 

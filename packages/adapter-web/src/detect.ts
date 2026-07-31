@@ -29,10 +29,9 @@ export async function detectWebProject(projectRoot: string): Promise<DetectedPro
   const declared = { ...installed.peer, ...installed.resolved };
 
   const hasSrc = await exists(join(projectRoot, "src"));
-  const base = hasSrc ? "src" : ".";
-  notes.push(
-    hasSrc ? "src/ を検出したので出力先を src/ 配下にした" : "src/ が無いのでルート直下を出力先にした",
-  );
+  // ファイルシステムから見た既定の基準。エイリアスが別のディレクトリを指していれば
+  // 後で上書きする (出力先は必ず importAlias の配下に置く必要がある)。
+  const filesystemBase = hasSrc ? "src" : ".";
 
   // 現状カタログは react + tailwind 前提しか持たないので、検出できなくても
   // その値を仮置きし、根拠が無いことだけを notes で伝える。
@@ -46,13 +45,35 @@ export async function detectWebProject(projectRoot: string): Promise<DetectedPro
     notes.push("components.json が無い。ui=shadcn を仮置きした (shadcn/ui 前提の recipe が多いため)");
   }
 
-  const detected = await detectImportAlias(projectRoot, base);
+  const detected = await detectImportAlias(projectRoot, filesystemBase);
   notes.push(...detected.notes);
   if (detected.alias === undefined) {
     notes.push(
       `importAlias=${FALLBACK_IMPORT_ALIAS} は検出できず仮置きした。違っていると生成されるファイルの import が解決できないので ui-kitchen.json を直す`,
     );
   }
+
+  // エイリアスが指すディレクトリ。検出できなかった場合はファイルシステム側の基準に
+  // 合わせる (src/ 構成なら "@/" は src/ を指すのが慣例)。ここを取り違えると
+  // import が "@/src/lib/cn" のように二重になって解決できない。
+  const aliasBase = detected.base ?? filesystemBase;
+  // 出力先は必ず aliasBase 配下に置く。ここが食い違うと import を組めない
+  // (例: "@/*" -> "./app/*" なのにルート直下へ出力すると "@/components" が
+  // app/components を指し、実際の出力先と一致しない)。
+  const base = aliasBase;
+
+  if (detected.base === undefined) {
+    notes.push(
+      `importAlias が指すディレクトリを ${aliasBase} と仮置きした。import が解決できない場合はここを疑う`,
+    );
+  } else if (detected.base !== filesystemBase) {
+    notes.push(
+      `importAlias が ${aliasBase} を指しているので、出力先も ${aliasBase} 配下にした (ファイルシステム上の既定は ${filesystemBase})`,
+    );
+  } else {
+    notes.push(`importAlias が指すディレクトリは ${aliasBase}`);
+  }
+  notes.push(base === "." ? "出力先はルート直下にした" : `出力先を ${base}/ 配下にした`);
 
   return {
     config: {
@@ -65,6 +86,7 @@ export async function detectWebProject(projectRoot: string): Promise<DetectedPro
         stylesDir: joinRelative(base, "styles"),
       },
       importAlias: detected.alias ?? FALLBACK_IMPORT_ALIAS,
+      aliasBase,
     },
     notes,
   };
