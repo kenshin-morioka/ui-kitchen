@@ -30,6 +30,14 @@ import { Button } from "@/components/button";
 </Button>
 ```
 
+`asChild` でも `disabled` で無効化できる。
+
+```tsx
+<Button asChild disabled={!canEdit}>
+  <Link to="/edit">編集</Link>
+</Button>
+```
+
 ## variant と size
 
 | variant | 用途 |
@@ -53,6 +61,25 @@ size は `default` / `xs` / `sm` / `lg` と、正方形の `icon` / `icon-xs` / 
 `asChild` は `radix-ui` の `Slot` を使う。`<a>` や `<Link>` を自前でスタイルすると
 ボタンの見た目が 2 系統に分かれるので、見た目はこのコンポーネントに寄せる。
 
+## asChild と disabled
+
+`<a>` や `<Link>` は `disabled` 属性を解釈せず、CSS の `:disabled` も一致しない。
+そのまま渡すと **見た目も挙動も無効化されず、リンクとして機能してしまう**
+（shadcn の実装はこの状態）。
+
+そこで `asChild` のときは `disabled` を属性として渡さず、`aria-disabled="true"` と
+`tabIndex={-1}` を出す。基底クラスの `aria-disabled:pointer-events-none` /
+`aria-disabled:opacity-50` が効くので、クリックできず、薄く表示され、タブ順からも
+外れる（無効な `<button>` と同じ挙動）。
+
+```html
+<!-- <Button asChild disabled><a href="/edit">編集</a></Button> の出力 -->
+<a href="/edit" aria-disabled="true" tabindex="-1" class="… aria-disabled:pointer-events-none …">編集</a>
+```
+
+限界: `focus()` で明示的にフォーカスを当てた状態の Enter は止まらない。無効な状態が
+長く続くなら、リンク自体を出し分ける（`canEdit ? <Button asChild>…</Button> : <Button disabled>…</Button>`）。
+
 `data-slot="button"` / `data-variant` / `data-size` を出力している。親側から
 `[&_[data-slot=button]]:…` の形でまとめて調整できるようにするため。
 
@@ -72,5 +99,7 @@ size は `default` / `xs` / `sm` / `lg` と、正方形の `icon` / `icon-xs` / 
 - `loading` 状態は持たない。無効化だけなら `disabled`、スピナーを出すなら
   `children` 側で描画する（`<Button disabled><Spinner />保存中</Button>`）
 - `asChild` の子要素は 1 つだけ。複数渡すと実行時に落ちる
+- `asChild` で無効化するときも `disabled` を渡す。子要素に `aria-disabled` を
+  自分で書くと二重に付く
 - `buttonVariants` を別の要素の `className` に貼ると `data-slot` などが付かない。
   ボタンの見た目が必要なら `asChild` を使う

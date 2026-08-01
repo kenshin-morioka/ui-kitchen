@@ -26,6 +26,7 @@ ai:
     - buttonVariants を呼んで別の要素に className として貼らない。data-slot / data-variant が付かず、スタイルの上書き対象を選べなくなる
     - アイコンだけのボタンに size="icon" を使うときは aria-label を必ず付ける (文字が無いので読み上げ内容が無くなる)
     - loading 状態は持たない。無効化するだけなら disabled、スピナーを出すなら children 側で描画する
+    - asChild で無効化するときも disabled を渡す。子要素に aria-disabled を自分で書かない (二重に付く)
   integration: |
     variant と size は cva で解決するので、className で渡した指定は
     tailwind-merge が後勝ちで畳む。恒久的な見た目の変更は buttonVariants の
@@ -33,6 +34,12 @@ ai:
 
     asChild は radix-ui の Slot を使う。子要素は 1 つだけで、props を受け取れる
     要素であること (<Link>、<a> など)。複数の子を渡すと実行時に落ちる。
+
+    asChild + disabled のときは disabled 属性ではなく aria-disabled と tabIndex=-1
+    を出す。<a> は disabled を解釈せず :disabled も一致しないので、そのまま渡すと
+    見た目も挙動も無効化されないため。クリックは pointer-events で止まり、タブ順
+    からも外れる。ただし focus() で明示的にフォーカスを当てた場合の Enter は
+    止まらないので、遷移させたくない状態が長く続くならリンク自体を出し分ける。
 
     data-slot="button" / data-variant / data-size が付くので、外側から
     [&_[data-slot=button]]:… のような形で束ねて調整できる。

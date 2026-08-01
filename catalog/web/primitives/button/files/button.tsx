@@ -7,7 +7,9 @@ import { Slot } from "radix-ui";
 import { cn } from "{{@libImport}}/cn";
 
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  // aria-disabled: は shadcn には無い。asChild で <a> を無効化するとき、
+  // :disabled が一致しないので見た目と操作抑止をこちら側で効かせるために足している。
+  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-all outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -43,6 +45,7 @@ function Button({
   variant = "default",
   size = "default",
   asChild = false,
+  disabled,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
@@ -50,11 +53,27 @@ function Button({
   }) {
   const Comp = asChild ? Slot.Root : "button";
 
+  /*
+   * asChild のとき disabled をそのまま渡しても無効化されない。<a> や <Link> は
+   * disabled 属性を解釈せず、CSS の :disabled も一致しないので、見た目は通常の
+   * ままリンクとして機能してしまう。
+   *
+   * そのため asChild では disabled を属性として渡さず、aria-disabled と
+   * tabIndex=-1 で表現する。aria-disabled: のクラスが pointer-events を切るので
+   * クリックできず、タブ順からも外れる (無効な <button> と同じ挙動)。
+   */
+  const disabledProps = asChild
+    ? disabled
+      ? { "aria-disabled": true as const, tabIndex: -1 }
+      : undefined
+    : { disabled };
+
   return (
     <Comp
       data-slot="button"
       data-variant={variant}
       data-size={size}
+      {...disabledProps}
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
