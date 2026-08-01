@@ -23,7 +23,7 @@ uikit add web/blocks/auth-card       # 依存ごと生成する
 
 ## 状態
 
-製作中。エンジン、CLI (`init` / `list` / `show` / `add`)、カタログの土台 (`web/tokens/base`、`web/lib/cn`) まで入っている。primitive は 1 recipe ずつ PR で追加していく。このリポジトリ内では `pnpm uikit <command>` で動かせる (パッケージとしては未公開)。
+製作中。エンジン、CLI (`init` / `list` / `show` / `add`)、カタログ (`web/tokens/base`、`web/lib/cn`、`web/primitives/button`) まで入っている。残りの primitive は 1 recipe ずつ PR で追加していく。このリポジトリ内では `pnpm uikit <command>` で動かせる (パッケージとしては未公開)。
 
 ## 必要なもの
 
