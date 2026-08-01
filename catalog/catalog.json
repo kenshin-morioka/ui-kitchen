@@ -17,6 +17,23 @@
       "use_when": "コンポーネントが className を受け取って既定のクラスに重ねるとき。\nカタログの primitive はすべてこれを requires しているので、通常は個別に\n指定する必要はない。\n"
     },
     {
+      "id": "web/primitives/button",
+      "name": "Button",
+      "kind": "primitive",
+      "platform": "web",
+      "description": "ボタン。variant 6 種 (default / destructive / outline / secondary / ghost / link) と size 8 種を持つ。shadcn/ui の button と同じ API。",
+      "tags": [
+        "cva",
+        "form",
+        "interactive"
+      ],
+      "requires": [
+        "web/lib/cn"
+      ],
+      "variants": [],
+      "use_when": "クリックで動作を起こす要素が必要なとき。見た目だけボタンにしたリンクも\nasChild で作れるので、<a> や <Link> を直接スタイルしない。\n"
+    },
+    {
       "id": "web/tokens/base",
       "name": "Base tokens",
       "kind": "tokens",

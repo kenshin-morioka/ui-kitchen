@@ -8,7 +8,7 @@
 
 ## 1. `catalog/web/primitives/*` を 1 件ずつ
 
-`button` → `input` → `card` → `badge` → `label` → `select` → `checkbox` の順。**1 recipe = 1 PR。**
+`input` → `card` → `badge` → `label` → `select` → `checkbox` の順（`button` は追加済み）。**1 recipe = 1 PR。**
 
 各 PR に含めるもの: `recipe.yaml`、`files/`、`README.md`、`pnpm catalog:build` で再生成した `catalog.json`、実プロジェクトへの `uikit add` の動作確認結果。
 
@@ -16,7 +16,9 @@
 
 primitive は `web/lib/cn` を requires する（`cn` の出力先は `lib/cn.ts`。shadcn の `lib/utils.ts` とは別ファイルなので、import は `{{@libImport}}/cn` と書く）。
 
-**`button` は実装済みで手元に控えがある。** shadcn 現行の `button.tsx`（cva + `radix-ui` の `Slot`、variant 6 種 / size 8 種）をそのまま写し、`cn` の import だけ差し替えた形。`recipe.yaml` / `files/button.tsx` / `README.md` は書き上がっていて、依存は `class-variance-authority` ^0.7.0 と `radix-ui` ^1.6.0。variant は持たせていない（`loading` を入れると `<Comp … />` を children で包む形に変える必要があり、行単位の条件ブロックでは表現できない）。次のイテレーションでこれを PR にする。
+`button` の作り方を後続の雛形にする。shadcn 現行の実装をそのまま写し、`cn` の import だけ差し替える。variant（recipe の variant 機構）は持たせていない — `loading` のようなものを入れると `<Comp … />` を children で包む形に変える必要があり、行単位の条件ブロックでは表現できない。必要になったらテンプレート機構側の設計から詰める。
+
+動作確認は「生成される」だけでなく **`tsc` とレンダリングまで通す**。`uikit add` は成功するのに import が解決しない、というのを一度踏んでいる。
 
 ## 2. 残っている CI の指摘
 
